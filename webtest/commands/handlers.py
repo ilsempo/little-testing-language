@@ -534,5 +534,3 @@ def handle_assert_match(cmd, page):
             raise Exception(f"[ASSERT - ERROR] '{first_value}' is different that '{second_value}'")
 
         print(f"[ASSERT] '{first_value}' matches with '{second_value}'")
-
-
