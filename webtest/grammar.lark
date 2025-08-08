@@ -1,0 +1,179 @@
+// =========================
+// Import y manejo de WS
+// =========================
+%import common.NEWLINE
+%import common.WS_INLINE
+%ignore WS_INLINE
+%ignore /#[^\n]*/
+
+_NEWLINE: NEWLINE
+// =========================
+// Tokens: commands
+// =========================
+_VISIT:     "visit"
+_CLICK:     "click"
+_FILL:      "fill"
+_DEFINE:    "DEFINE"
+_VALIDATE:  "validate"
+_VERIFY:    "verify"
+_SELECT:    "select"
+CHECK:      "check"
+UNCHECK:    "uncheck"
+_TEXT:      "text"
+_IMPORT:    "IMPORT"
+_USE:       "USE"
+_SAVE:      "SAVE"
+_UPLOAD:    "upload"
+ACCEPT:     "accept"
+DISMISS:    "dismiss"
+_WAIT:      "wait"
+_ASSERT:    "assert"
+
+// =========================
+// Tokens: Prepositions / Connectors
+// =========================
+_WITH:      "with"
+_FROM:      "from"
+_IN:        "in"
+
+// =========================
+// Tokens: Domain Nouns
+// =========================
+_LOCATOR_KW:     "LOCATOR"
+_ELEMENT_KW:     "element"
+_PAGE:           "page"
+_FORM:           "form"
+_DATA:           "data"
+_ELEMENTS:       "elements"
+_LOCATORS:       "locators"
+_LOCATORS_UPPER: "LOCATORS"
+_MACRO:          "MACRO"
+_VARIABLE:       "variable"
+_FILE:           "file"
+_INPUT:          "input"
+_DIALOG:         "dialog"
+_SECONDS:        "seconds"
+
+// =========================
+// Tokens: Qualifiers / Internal Verbs
+// =========================
+_LOADS:    "loads"
+_PRESENT:  "present"
+_MATCHES:  "matches"
+
+// =========================
+// Tokens: Auxiliares compuestos
+// =========================
+// IS_NOT debe ir antes que IS para capturar "is not"
+IS_NOT: "is" WS_INLINE "not"
+IS:     "is"
+
+// =========================
+// Tokens: Símbolos
+// =========================
+_VBAR:  "|"
+_COLON: ":"
+
+// =========================
+// Invisible token for end of the line:
+// _NEWLINE:  /\r?\n/  
+// =========================
+
+// =========================
+// Tokens: Palabras de tabla
+// =========================
+_LOCATOR_WORD: "locator"
+_DATA_WORD:    "data"
+_VALUE_WORD:   "value"
+
+// =========================
+// Tokens: Generic data
+// =========================
+%import common.ESCAPED_STRING -> STRING
+%import common.INT
+NAME:          /([a-zA-Z_][a-zA-Z0-9_]*)(:[a-zA-Z_][a-zA-Z0-9_]*)?/
+PARAM:         /[^\s\n|]+/
+TABLE_PARAM:   /[^\n|]+/
+SELECTOR:      /[^\n]+/
+TAG:           /<[^<>]*>/
+COMPLEX_VALUE: STRING
+             | INT
+             | NAME
+
+// ---------------------------
+// Tokens for functions
+// ---------------------------
+_END:      "END"
+
+// =========================
+// Grammar
+// =========================
+start: (command _NEWLINE*)+
+
+command: visit_command
+       | click_command
+       | fill_command
+       | validate_page_command
+       | define_locator_variable
+       | check_element_present
+       | fill_form_with_data
+       | select_from_select
+       | select_list_selects
+       | check_checkbox_command
+       | check_massage_present
+       | import_locators_command
+       | use_function_command
+       | save_in_variable_command
+       | upload_file_command
+       | accept_or_dismiss_command
+       | wait_command
+       | assert_matches_command
+
+visit_command: _VISIT PARAM -> visit
+click_command: _CLICK PARAM _ELEMENT_KW? INT? -> click
+fill_command:  _FILL PARAM _WITH STRING -> fill
+
+validate_page_command: _VALIDATE _label _PAGE _LOADS _WITH _LOCATORS _COLON _NEWLINE locator_table -> check_page
+
+define_locator_variable: _DEFINE _LOCATOR_KW NAME _COLON SELECTOR -> define_locator
+
+check_element_present: _VERIFY _ELEMENT_KW NAME (IS_NOT|IS) _PRESENT _IN _PAGE -> element_visible
+
+fill_form_with_data: _FILL _FORM _WITH _DATA _COLON _NEWLINE _table_header _fill_table -> fill_form
+
+select_from_select: _SELECT STRING _FROM NAME _SELECT -> select_tag
+
+select_list_selects: _SELECT _ELEMENTS _COLON _NEWLINE _table_header_list _fill_table -> select_list
+
+check_checkbox_command: (CHECK|UNCHECK) NAME _ELEMENT_KW -> checkbox_check
+
+check_massage_present: CHECK STRING _TEXT _IN TAG (IS_NOT|IS) _PRESENT _IN _PAGE -> text_visible
+
+import_locators_command: _IMPORT _LOCATORS_UPPER NAME -> import_locators
+
+use_function_command: _USE _MACRO NAME -> use_function
+
+save_in_variable_command: _SAVE COMPLEX_VALUE _FROM? _ELEMENT_KW? INT? _IN NAME _VARIABLE -> save_variable
+
+upload_file_command: _UPLOAD STRING _FILE _IN NAME _INPUT -> upload_file
+
+accept_or_dismiss_command: (ACCEPT|DISMISS) NAME _DIALOG -> accept_dismiss
+
+wait_command: _WAIT INT _SECONDS -> wait
+
+assert_matches_command: _ASSERT COMPLEX_VALUE _ELEMENT_KW? INT? _MATCHES _WITH COMPLEX_VALUE _ELEMENT_KW? INT? -> assert_match
+
+// Tables
+_table_header:      _VBAR _LOCATOR_WORD _VBAR _DATA_WORD _VBAR _NEWLINE
+_table_header_list: _VBAR _LOCATOR_WORD _VBAR _VALUE_WORD _VBAR _NEWLINE
+
+_fill_table: _new_row+
+_new_row: _VBAR NAME _VBAR STRING _VBAR _NEWLINE
+
+_label: NAME+
+
+locator_table: _row+
+_row: _VBAR TABLE_PARAM _VBAR _NEWLINE?
+
+
+

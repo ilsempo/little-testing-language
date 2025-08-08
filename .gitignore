@@ -1,0 +1,14 @@
+# folders to ignore
+.vscode/
+.venv/
+tests/
+webtest_runner.egg-info/
+
+# python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# temp files
+*.log
