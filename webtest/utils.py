@@ -1,5 +1,6 @@
 from faker import Faker
 import re
+from playwright.sync_api import TimeoutError as PWTimeoutError
 
 def generate_mocked_data(entered_text):
     fake = Faker('es_AR')
@@ -32,3 +33,4 @@ def load_functions(path):
         functions[name] = body.strip()
 
     return functions
+
