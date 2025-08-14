@@ -1,4 +1,4 @@
-from webtest.utils import generate_mocked_data
+from webtest.utils import generate_mocked_data, resolve_selector, get_unique_locator
 from lark import Token
 from pathlib import Path
 import yaml
@@ -32,29 +32,18 @@ def handle_click(cmd, page):
     children = cmd.children[0].children
     variable = children[0]
 
-    if variable not in locator_map:
-        raise Exception(f"[CLICK] failed, undefined locator: {variable}")
-
-    defined_locator = locator_map[variable]
-    locator = page.locator(defined_locator)
-
-    matches = locator.count()
+    defined_locator = resolve_selector(variable, locator_map, "[CLICK - ERROR]")
+    locator = get_unique_locator(page, defined_locator, "[CLICK - ERROR]", require_clickable=True)
 
     if len(children) > 1:
         number = int(children[1]) - 1
         locator = locator.nth(number)
-    else:
-        if matches > 1:
-            raise Exception(f"[CLICK - ERROR] locator '{defined_locator}' got {matches} matches, please define a more specific locator")
-
-    if not locator.is_visible():
-        raise Exception(f"[CLICK - ERROR] locator '{defined_locator}' found but not is not visible")
 
     try:
         print(f"[CLICK] {variable}")
         locator.click()
     except Exception as e:
-        print(f"element is not clickable, error: {e}")
+        print(f"[CLICK - ERROR] tried to click but an error occured: {e}")
         raise
 
 
@@ -62,23 +51,11 @@ def handle_click(cmd, page):
 def handle_fill(cmd, page):
     variable = cmd.children[0].children[0]
 
-    if variable not in locator_map:
-        raise Exception(f"[FILL] failed, undefined locator: {variable}")
-
-    defined_locator = locator_map[variable]
+    defined_locator = resolve_selector(variable, locator_map, "[FILL - ERROR]")
     valid_fills = {"tag": {"input", "textarea"},
                    "type": {"text", "email", "password", "search", "url", "''"}}
-    locator = page.locator(defined_locator)
+    locator = get_unique_locator(page, defined_locator, "[FILL - ERROR]")
     entered_text = cmd.children[0].children[1].value.strip('"')
-    matches = locator.count()
-
-    if matches == 0:
-        raise Exception(f"[FILL - ERROR] element: {variable} with locator: {defined_locator} does not match any element")
-    elif matches > 1:
-        Exception(f"[FILL - ERROR] element: {variable} with locator: {defined_locator} got {matches} matches, please define a more specific locator")
-
-    if not locator.is_visible():
-        raise Exception(f"[FILL - ERROR] element: {variable} with locator: {defined_locator} not visible or not present in page")
 
     if "mocked:" in entered_text:
         text = generate_mocked_data(entered_text)

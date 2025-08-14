@@ -34,3 +34,52 @@ def load_functions(path):
 
     return functions
 
+def resolve_selector(entered_locator, locator_map, label_error):
+    if entered_locator not in locator_map:
+        raise Exception(f"{label_error} undefined locator: {entered_locator}")
+    return locator_map[entered_locator]
+
+def resolve_selectors(entered_locators, locator_map, label_error):
+    missing = {loc for loc in entered_locators if loc not in locator_map}
+    if missing:
+        raise Exception(f"{label_error} undefined locators: {missing}")
+    return {loc: locator_map[loc] for loc in entered_locators}
+
+def get_unique_locator(page, selector, label_error, require_visible=True, require_clickable=False, timeout_ms=5000):
+    loc = page.locator(selector)
+    try:
+        loc.first.wait_for(state="attached", timeout=timeout_ms)
+    except PWTimeoutError:
+        if loc.count() == 0:
+            raise Exception(f"{label_error} locator '{selector}' does not match any element")
+
+    count = loc.count()
+    if count == 0:
+        raise Exception(f"{label_error} locator '{selector}' does not match any element")
+    if count > 1:
+        raise Exception(f"{label_error} locator '{selector}' matches more than one element, please define a more specific locator")
+
+    if require_visible:
+        try:
+            loc.wait_for(state="visible", timeout=timeout_ms)
+        except PWTimeoutError:
+            if not loc.is_visible():
+                raise Exception(f"{label_error} locator found but not visible: '{selector}'")
+        if require_clickable:
+            pointer_events = loc.evaluate("el => getComputedStyle(el).pointerEvents")
+            if pointer_events == "none":
+                raise Exception(f"{label_error} locator '{selector}' is not clickable (pointer-events: none)")
+
+    return loc
+
+def assert_all_unique_and_visible(page, selectors_dict, label_error, timeout_ms=5000):
+    errors = []
+    result = {}
+    for name, selector in selectors_dict.items():
+        try:
+            result[name] = get_unique_locator(page, selector, label_error, require_visible=True, timeout_ms=timeout_ms)
+        except Exception as e:
+            errors.append(f"{name} -> {e}")
+    if errors:
+        raise Exception(f"{label_error} locator issues:\n- " + "\n- ".join(errors))
+    return result
