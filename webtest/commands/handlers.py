@@ -1,4 +1,4 @@
-from webtest.utils import generate_mocked_data, resolve_selector, get_unique_locator
+from webtest.utils import generate_mocked_data, resolve_selector, get_unique_locator, resolve_selectors, assert_all_unique_and_visible
 from lark import Token
 from pathlib import Path
 import yaml
@@ -81,21 +81,9 @@ def handle_check_page(cmd, page):
     rows = cmd.children[0].children[1].children
     entered_locators = {row.value.strip() for row in rows}
 
-    not_defined_locators = {locator for locator in entered_locators if locator not in locator_map}
-    if not_defined_locators:
-        raise Exception(f"[VERIFY-PAGE - ERROR] undefined locators: {not_defined_locators}")
-
-    for locator in entered_locators:
-        page_locator = page.locator(locator_map[locator])
-        matches = page_locator.count()
-
-        if matches == 0:
-            raise Exception(f"[VERIFY-PAGE - ERROR] locator '{page_locator}' does not match any element")
-        elif matches > 1: 
-            raise Exception(f"[VERIFY-PAGE - ERROR] locator '{page_locator}' matches more than one element, please define a more specific locator")
-
-        if not page_locator.is_visible():
-            raise Exception(f"[VERIFY-PAGE - ERROR] locator '{page_locator} found but not visible in page'")
+    verified_locators = resolve_selectors(entered_locators, locator_map, "[VERIFY-PAGE - ERROR]")
+    
+    assert_all_unique_and_visible(page, verified_locators, "[VERIFY-PAGE - ERROR]")
 
     print(f"[VERIFY-PAGE] {page_name} page loaded correctly")
 
