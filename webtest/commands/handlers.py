@@ -106,8 +106,9 @@ def handle_element_visible(cmd, page):
 
 @register("define_locator")
 def handle_define(cmd, _):
-    defined_locator = cmd.children[0].children[1].value.strip()
-    variable = cmd.children[0].children[0].value.strip()
+    children = cmd.children[0]
+    defined_locator = children.children[1].value.strip()
+    variable = children.children[0].value.strip()
     if variable in ctx.locator_map:
         print(f"[MERGE-ALERT] merging already defined locators, {variable} locator was already defined")
     ctx.locator_map[variable] = defined_locator
@@ -116,9 +117,7 @@ def handle_define(cmd, _):
 def handle_fill_form(cmd, page):
     rows = cmd.children[0].children
     variable_locators = {token.value.strip() for token in rows if isinstance(token, Token) and token.type == "NAME"}
-    not_defined_locators = {locator for locator in variable_locators if locator not in ctx.locator_map}
-    if not_defined_locators:
-        raise Exception(f"[FILL-FORM - ERROR] locators not defined: {not_defined_locators}")
+    resolve_selectors(variable_locators, "[FILL-FORM - ERROR]")
 
     for i in range(0, len(rows), 2):
         locator_variable_name = rows[i].value.strip()
@@ -136,24 +135,14 @@ def handle_fill_form(cmd, page):
         else:
             text = entered_text
 
-        defined_locator = ctx.locator_map[locator_variable_name]
-        page_locator = page.locator(defined_locator)
-        matches = page_locator.count()
-
-        if matches == 0:
-            raise Exception(f"[FILL-FORM - ERROR] locator '{defined_locator}' does not match any element")
-        elif matches > 1:
-            raise Exception(f"[FILL-FORM - ERROR] locator '{defined_locator}' matches more than one element, please define a more specific locator")
-
-        if not page_locator.is_visible():
-            raise Exception(f"[FILL-FORM - ERROR] locator '{defined_locator}' not visible or not present in page")
+        page_locator, _ = get_unique_locator(page, locator_variable_name, "[FILL-FORM - ERROR]")
 
         valid_fills = { "tag": {"input", "textarea"},
                         "type": {"text", "email", "password", "search", "url", "''"}}
 
         tag = page_locator.evaluate("element => element.tagName.toLowerCase()")
         if not (tag in valid_fills["tag"] and (tag == "input" and page_locator.get_attribute("type") in valid_fills["type"]) or tag == "textarea"):
-            raise Exception(f"[FILL-FORM - ERROR] locator '{defined_locator}' is not fillable with data")
+            raise Exception(f"[FILL-FORM - ERROR] locator '{locator_variable_name}' is not fillable with data")
 
         page_locator.fill(text) 
 
