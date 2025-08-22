@@ -7,7 +7,6 @@ from webtest.utils import load_functions
 import time
 
 command_handlers = {}
-locator_map = {}
 variables = {}
 
 def register(name):
@@ -32,8 +31,8 @@ def handle_click(cmd, page):
     children = cmd.children[0].children
     variable = children[0]
 
-    defined_locator = resolve_selector(variable, locator_map, "[CLICK - ERROR]")
-    locator = get_unique_locator(page, defined_locator, "[CLICK - ERROR]", require_clickable=True)
+    defined_locator = resolve_selector(variable, "[CLICK - ERROR]")
+    locator, _ = get_unique_locator(page, defined_locator, "[CLICK - ERROR]", require_clickable=True)
 
     if len(children) > 1:
         number = int(children[1]) - 1
@@ -51,10 +50,10 @@ def handle_click(cmd, page):
 def handle_fill(cmd, page):
     variable = cmd.children[0].children[0]
 
-    defined_locator = resolve_selector(variable, locator_map, "[FILL - ERROR]")
+    defined_locator = resolve_selector(variable, "[FILL - ERROR]")
     valid_fills = {"tag": {"input", "textarea"},
                    "type": {"text", "email", "password", "search", "url", "''"}}
-    locator = get_unique_locator(page, defined_locator, "[FILL - ERROR]")
+    locator, _ = get_unique_locator(page, defined_locator, "[FILL - ERROR]")
     entered_text = cmd.children[0].children[1].value.strip('"')
 
     if "mocked:" in entered_text:
@@ -81,7 +80,7 @@ def handle_check_page(cmd, page):
     rows = cmd.children[0].children[1].children
     entered_locators = {row.value.strip() for row in rows}
 
-    verified_locators = resolve_selectors(entered_locators, locator_map, "[VERIFY-PAGE - ERROR]")
+    verified_locators = resolve_selectors(entered_locators, "[VERIFY-PAGE - ERROR]")
     
     assert_all_unique_and_visible(page, verified_locators, "[VERIFY-PAGE - ERROR]")
 
@@ -89,22 +88,12 @@ def handle_check_page(cmd, page):
 
 @register("element_visible")
 def handle_element_visible(cmd, page):
-    variable = cmd.children[0].children[0].value.strip()
-    present_or_not = cmd.children[0].children[1].value.strip()
-
-    if variable not in locator_map:
-        raise Exception(f"[ELEMENT-VISIBLE - ERROR] undefined locator: {variable}")
-
-    defined_locator = locator_map[variable]
-    locator = page.locator(defined_locator)
-    matches = locator.count()
-
-    if matches == 0:
-        raise Exception(f"[ELEMENT-VISIBLE - ERROR]  locator '{variable}' does not match any element")
-    if matches > 1:
-        raise Exception(f"[VERIFY-PAGE - ERROR] locator '{variable}' matches more than one element, please define a more specific locator")
-
-    element_is_visible = locator.is_visible()
+    children = cmd.children[0]
+    variable = children.children[0].value.strip()
+    present_or_not = children.children[1].value.strip()
+    
+    defined_locator = resolve_selector(variable, "[ELEMENT-VISIBLE - ERROR]")
+    _, element_is_visible = get_unique_locator(page, defined_locator, "[ELEMENT-VISIBLE - ERROR]")
 
     if present_or_not == "is":
         if not element_is_visible:
@@ -119,15 +108,15 @@ def handle_element_visible(cmd, page):
 def handle_define(cmd, _):
     defined_locator = cmd.children[0].children[1].value.strip()
     variable = cmd.children[0].children[0].value.strip()
-    if variable in locator_map:
+    if variable in ctx.locator_map:
         print(f"[MERGE-ALERT] merging already defined locators, {variable} locator was already defined")
-    locator_map[variable] = defined_locator
+    ctx.locator_map[variable] = defined_locator
 
 @register("fill_form")
 def handle_fill_form(cmd, page):
     rows = cmd.children[0].children
     variable_locators = {token.value.strip() for token in rows if isinstance(token, Token) and token.type == "NAME"}
-    not_defined_locators = {locator for locator in variable_locators if locator not in locator_map}
+    not_defined_locators = {locator for locator in variable_locators if locator not in ctx.locator_map}
     if not_defined_locators:
         raise Exception(f"[FILL-FORM - ERROR] locators not defined: {not_defined_locators}")
 
@@ -147,7 +136,7 @@ def handle_fill_form(cmd, page):
         else:
             text = entered_text
 
-        defined_locator = locator_map[locator_variable_name]
+        defined_locator = ctx.locator_map[locator_variable_name]
         page_locator = page.locator(defined_locator)
         matches = page_locator.count()
 
@@ -175,10 +164,10 @@ def handle_select(cmd, page):
     option_to_select = cmd.children[0].children[0].value.strip('"')
     locator_variable = cmd.children[0].children[1].value.strip()
 
-    if locator_variable not in locator_map:
+    if locator_variable not in ctx.locator_map:
         raise Exception(f"[SELECT - ERROR] {locator_variable} locator not defined")
 
-    defined_locator = locator_map[locator_variable]
+    defined_locator = ctx.locator_map[locator_variable]
     page_locator = page.locator(defined_locator)
     matches = page_locator.count()
 
@@ -210,7 +199,7 @@ def handle_select(cmd, page):
 def select_list_handler(cmd, page):
     rows = cmd.children[0].children
     variable_locators = {token.value.strip() for token in rows if isinstance(token, Token) and token.type == "NAME"}
-    not_defined_locators = {locator for locator in variable_locators if locator not in locator_map}
+    not_defined_locators = {locator for locator in variable_locators if locator not in ctx.locator_map}
 
     if not_defined_locators:
         raise Exception(f"[SELECT-LIST - ERROR] locators not defined: {not_defined_locators}")
@@ -218,7 +207,7 @@ def select_list_handler(cmd, page):
     for i in range(0, len(rows), 2):
         entered_variable = rows[i].value.strip()
         option_to_select = rows[i + 1].value.strip('"')
-        defined_locator = locator_map[entered_variable]
+        defined_locator = ctx.locator_map[entered_variable]
         page_locator = page.locator(defined_locator)
         matches = page_locator.count()
 
@@ -251,10 +240,10 @@ def check_uncheck_handler(cmd, page):
     valid_checks = {"tag": "input",
                     "type": {"checkbox", "radio"}}
 
-    if entered_locator not in locator_map:
+    if entered_locator not in ctx.locator_map:
         raise Exception(f"{label_error} undefined locator: {entered_locator}")
 
-    defined_locator = locator_map[entered_locator]
+    defined_locator = ctx.locator_map[entered_locator]
     page_locator = page.locator(defined_locator)
     matches = page_locator.count()
 
@@ -333,11 +322,11 @@ def handle_import_locators(cmd, _):
         if not isinstance(locators, dict):
             raise ValueError("[IMPORT-LOCATORS] YAML format invalid (must be key-value)")
         
-        already_in_locator_map = {locator for locator in locators.keys() if locator in locator_map}
+        already_in_locator_map = {locator for locator in locators.keys() if locator in ctx.locator_map}
         if already_in_locator_map:
             print(f"[MERGE-ALERT] merging already defined locators: {already_in_locator_map}")
 
-        locator_map.update(locators)
+        ctx.locator_map.update(locators)
 
 @register("use_function")
 def handle_define_function(cmd, page):
@@ -370,10 +359,10 @@ def handle_save_variable(cmd, page):
         variable_locator = to_save_in_variable.split(":")[1]
         entered_variable_name = children[2].value.strip()
 
-        if variable_locator not in locator_map:
+        if variable_locator not in ctx.locator_map:
             raise Exception(f"[SAVE-VARIABLE - ERROR] locator '{variable_locator}' not defined")
 
-        defined_locator = locator_map[variable_locator]
+        defined_locator = ctx.locator_map[variable_locator]
         locator = page.locator(defined_locator)
         matches = locator.count()
 
@@ -403,19 +392,19 @@ def handle_upload_file(cmd, page):
     if not file_path.exists():
         raise Exception(f"[UPLOAD-FILE] error, file '{entered_file_name}' not found")
 
-    if not locator_variable in locator_map:
+    if not locator_variable in ctx.locator_map:
         raise Exception(f"[UPLOAD-FILE] error, '{locator_variable}' not declared")
 
-    page_locator = page.locator(locator_map[locator_variable])
+    page_locator = page.locator(ctx.locator_map[locator_variable])
     tag = page_locator.evaluate("element => element.tagName.toLowerCase()")
 
     if tag != "input" or page_locator.get_attribute("type") != "file":
         raise Exception(f"[UPLOAD-FILE] failed, element is not an input or is an input but not type file")
 
     if not (page_locator.is_visible() and page_locator.count() > 0):
-        raise Exception(f"[UPLOAD-FILE] failed, locator not found or not visible: {locator_variable}: {locator_map[locator_variable]}")
+        raise Exception(f"[UPLOAD-FILE] failed, locator not found or not visible: {locator_variable}: {ctx.locator_map[locator_variable]}")
 
-    page.set_input_files(locator_map[locator_variable], file_path)
+    page.set_input_files(ctx.locator_map[locator_variable], file_path)
 
 #FIXME
 # @register("accept_dismiss")
@@ -442,10 +431,10 @@ def handle_assert_match(cmd, page):
                 if value.startswith("txt:"):
                     variable_name = value.split(":")[1]
 
-                    if variable_name not in locator_map:
+                    if variable_name not in ctx.locator_map:
                         raise Exception(f"[ASSERT - ERROR] locator '{variable_name}' not declared")
                     
-                    variable_locator = locator_map[variable_name]
+                    variable_locator = ctx.locator_map[variable_name]
                     locator = page.locator(variable_locator)
                     matches = locator.count()
                     
@@ -479,9 +468,9 @@ def handle_assert_match(cmd, page):
                 to_return = variables[variable_name]
             elif value.startswith("txt:"):
                 variable_name = value.split(":")[1]
-                if variable_name not in locator_map:
+                if variable_name not in ctx.locator_map:
                     raise Exception(f"[ASSERT - ERROR] locator '{variable_name}' not declared")
-                defined_locator = locator_map[variable_name]
+                defined_locator = ctx.locator_map[variable_name]
                 locator = page.locator(defined_locator)
                 matches = locator.count()
                 if matches == 0:
