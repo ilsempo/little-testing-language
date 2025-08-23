@@ -121,6 +121,7 @@ def handle_fill_form(cmd, page):
 
     for i in range(0, len(rows), 2):
         locator_variable_name = rows[i].value.strip()
+        entered_locator = resolve_selector(locator_variable_name, "[FILL-FORM - ERROR]")
         entered_text = rows[i + 1].value.strip('"')
 
         if "mocked:" in entered_text:
@@ -135,8 +136,8 @@ def handle_fill_form(cmd, page):
         else:
             text = entered_text
 
-        page_locator, _ = get_unique_locator(page, locator_variable_name, "[FILL-FORM - ERROR]")
-
+        page_locator, _ = get_unique_locator(page, entered_locator, "[FILL-FORM - ERROR]")
+        print(page_locator)
         valid_fills = { "tag": {"input", "textarea"},
                         "type": {"text", "email", "password", "search", "url", "''"}}
 
@@ -150,23 +151,12 @@ def handle_fill_form(cmd, page):
 
 @register("select_tag")
 def handle_select(cmd, page):
-    option_to_select = cmd.children[0].children[0].value.strip('"')
-    locator_variable = cmd.children[0].children[1].value.strip()
+    children = cmd.children[0]
+    option_to_select = children.children[0].value.strip('"')
+    locator_variable = children.children[1].value.strip()
 
-    if locator_variable not in ctx.locator_map:
-        raise Exception(f"[SELECT - ERROR] {locator_variable} locator not defined")
-
-    defined_locator = ctx.locator_map[locator_variable]
-    page_locator = page.locator(defined_locator)
-    matches = page_locator.count()
-
-    if matches == 0:
-        raise Exception(f"[SELECT - ERROR] locator '{defined_locator}' does not match any element")
-    elif matches > 1:
-        raise Exception(f"[SELECT - ERROR] locator '{defined_locator}' matches more than one element, please define a more specific locator")
-
-    if not page_locator.is_visible():
-        raise Exception(f"[SELECT - ERROR] locator not found or not visible: {locator_variable}")
+    defined_locator = resolve_selector(locator_variable, "[SELECT - ERROR]")
+    page_locator = get_unique_locator(page, defined_locator, "[SELECT - ERROR]")
 
     tag = page_locator.evaluate("element => element.tagName.toLowerCase()") == "select"
     if not tag:
