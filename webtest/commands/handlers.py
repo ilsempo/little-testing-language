@@ -156,7 +156,7 @@ def handle_select(cmd, page):
     locator_variable = children.children[1].value.strip()
 
     defined_locator = resolve_selector(locator_variable, "[SELECT - ERROR]")
-    page_locator = get_unique_locator(page, defined_locator, "[SELECT - ERROR]")
+    page_locator, _ = get_unique_locator(page, defined_locator, "[SELECT - ERROR]")
 
     tag = page_locator.evaluate("element => element.tagName.toLowerCase()") == "select"
     if not tag:
