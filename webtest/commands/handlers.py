@@ -156,7 +156,7 @@ def handle_select(cmd, page):
     locator_variable = children.children[1].value.strip()
 
     defined_locator = resolve_selector(locator_variable, "[SELECT - ERROR]")
-    page_locator, = get_unique_locator(page, defined_locator, "[SELECT - ERROR]")
+    page_locator,_ = get_unique_locator(page, defined_locator, "[SELECT - ERROR]")
 
     tag = page_locator.evaluate("element => element.tagName.toLowerCase()") == "select"
     if not tag:
@@ -178,61 +178,38 @@ def handle_select(cmd, page):
 def select_list_handler(cmd, page):
     rows = cmd.children[0].children
     variable_locators = {token.value.strip() for token in rows if isinstance(token, Token) and token.type == "NAME"}
-    not_defined_locators = {locator for locator in variable_locators if locator not in ctx.locator_map}
-
-    if not_defined_locators:
-        raise Exception(f"[SELECT-LIST - ERROR] locators not defined: {not_defined_locators}")
+    resolve_selectors(variable_locators, "[SELECT-LIST - ERROR]")
 
     for i in range(0, len(rows), 2):
-        entered_variable = rows[i].value.strip()
+        entered_variable_name = rows[i].value.strip()
+        solved_locator = resolve_selector(entered_variable_name, "[SELECT-LIST - ERROR]")
         option_to_select = rows[i + 1].value.strip('"')
-        defined_locator = ctx.locator_map[entered_variable]
-        page_locator = page.locator(defined_locator)
-        matches = page_locator.count()
+        defined_locator,_ = get_unique_locator(page, solved_locator, "[SELECT-LIST - ERROR]")
 
-        if matches == 0:
-            raise Exception(f"[SELECT-LIST - ERROR] locator '{defined_locator}' does not match any element")
-        elif matches > 1:
-            raise Exception(f"[SELECT-LIST - ERROR] locator '{defined_locator}' matches more than one element, please define a more specific locator")
-
-        if not page_locator.is_visible():
-            raise Exception(f"[SELECT-LIST - ERROR] locator not found or not visible: {entered_variable}")
-        
-        tag = page_locator.evaluate("element => element.tagName.toLowerCase()") == "select"
+        tag = defined_locator.evaluate("element => element.tagName.toLowerCase()") == "select"
         if not tag:
-            raise Exception(f"[SELECT-LIST - ERROR] element {entered_variable} is not a select element")
+            raise Exception(f"[SELECT-LIST - ERROR] element {entered_variable_name} is not a select element")
 
         try:
-            page_locator.select_option(label=option_to_select)
+            defined_locator.select_option(label=option_to_select)
         except Exception as e:
-            print(f"[SELECT-LIST - ERROR] something happened when selecting option {entered_variable}, error: {e}")
+            print(f"[SELECT-LIST - ERROR] something happened when selecting option {entered_variable_name}, error: {e}")
 
     print(f"[SELECT-LIST] all options selected")
 
 @register("checkbox_check")
 def check_uncheck_handler(cmd, page):
-    action = cmd.children[0].children[0].value.strip()
-    entered_locator = cmd.children[0].children[1].value.strip()
+    children = cmd.children[0]
+    action = children.children[0].value.strip()
+    entered_locator = children.children[1].value.strip()
     label = "[CHECK]" if action == "check" else "[UNCHECK]"
     label_error = "[CHECK - ERROR]" if action == "check" else "[UNCHECK - ERROR]"
 
     valid_checks = {"tag": "input",
                     "type": {"checkbox", "radio"}}
 
-    if entered_locator not in ctx.locator_map:
-        raise Exception(f"{label_error} undefined locator: {entered_locator}")
-
-    defined_locator = ctx.locator_map[entered_locator]
-    page_locator = page.locator(defined_locator)
-    matches = page_locator.count()
-
-    if matches == 0:
-        raise Exception(f"{label_error} locator '{defined_locator}' does not match any element")
-    elif matches > 1:
-        raise Exception(f"{label_error} locator '{defined_locator}' matches more than one element, please define a more specific locator")
-
-    if not page_locator.is_visible():
-        raise Exception(f"{label_error} locator found but not visible: '{defined_locator}'")
+    defined_locator = resolve_selector(entered_locator, label_error)
+    page_locator,_= get_unique_locator(page, defined_locator, label_error)
 
     tag = page_locator.evaluate("element => element.tagName.toLowerCase()")
     attribute = page_locator.get_attribute("type")
