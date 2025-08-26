@@ -231,7 +231,8 @@ def check_uncheck_handler(cmd, page):
 
 @register("text_visible")
 def handle_text_visible(cmd, page):
-    entered_text = cmd.children[0].children[1].value.strip('"')
+    children = cmd.children[0]
+    entered_text = children.children[1].value.strip('"')
 
     if entered_text.startswith("var:"):
         variable = entered_text.split(":")[1]
@@ -240,25 +241,15 @@ def handle_text_visible(cmd, page):
             raise Exception(f"[CHECK-TEXT - ERROR] variable {variable} not defined")
         entered_text = variables[variable]
 
-    entered_tag = cmd.children[0].children[2].value.strip("<>")
-    present_in_page = cmd.children[0].children[3].value.strip('"')
+    entered_tag = children.children[2].value.strip("<>")
+    present_in_page = children.children[3].value.strip('"')
     text_to_look = f"//{entered_tag}[contains(text(), '{entered_text}')]"
-    text = page.locator(text_to_look)
-    matches = text.count()
-
-    if matches == 0:
-        raise Exception(f"[CHECK-TEXT - ERROR] locator '{entered_text}' does not match any element")
-    elif matches > 1:
-        raise Exception(f"[CHECK-TEXT - ERROR] locator '{entered_text}' matches more than one element please try using verify element")
-
-    text_is_visible = text.is_visible()
+    _, text_is_visible = get_unique_locator(page, text_to_look, "[CHECK-TEXT - ERROR]")
 
     if present_in_page == "is":
         if not text_is_visible:
             raise Exception(f"[CHECK-TEXT - ERROR] text '{entered_text}' is not visible")
         print(f"[CHECK-TEXT] text '{entered_text}' is visible in page")
-        if matches > 1:
-            print(f"note that the text you entered appears more than once")
     else:
         if text_is_visible:
             raise Exception(f"[CHECK-TEXT - ERROR] text '{entered_text}' is visible but shouldn't be")
@@ -312,11 +303,8 @@ def handle_save_variable(cmd, page):
     if to_save_in_variable.startswith("mocked:"):
         to_save_in_variable = generate_mocked_data(to_save_in_variable)
     elif to_save_in_variable.startswith("txt:"):
-        variable_locator = to_save_in_variable.split(":")[1]
+        variable_locator = resolve_selector(to_save_in_variable.split(":")[1], "[SAVE-VARIABLE - ERROR]")
         entered_variable_name = children[2].value.strip()
-
-        if variable_locator not in ctx.locator_map:
-            raise Exception(f"[SAVE-VARIABLE - ERROR] locator '{variable_locator}' not defined")
 
         defined_locator = ctx.locator_map[variable_locator]
         locator = page.locator(defined_locator)
@@ -383,29 +371,11 @@ def handle_assert_match(cmd, page):
             if children[i].type == "COMPLEX_VALUE":
                 value = children[i].value.strip('"')
                 number = children[i + 1] if i + 1 < len(children) else None
-
                 if value.startswith("txt:"):
-                    variable_name = value.split(":")[1]
-
-                    if variable_name not in ctx.locator_map:
-                        raise Exception(f"[ASSERT - ERROR] locator '{variable_name}' not declared")
-                    
-                    variable_locator = ctx.locator_map[variable_name]
-                    locator = page.locator(variable_locator)
-                    matches = locator.count()
-                    
-                    if matches == 0:
-                        raise Exception(f"[ASSERT - ERROR] locator '{variable_locator}' does not match any element")
-
-                    if matches > 1 and not number:
-                        raise Exception(f"[ASSERT - ERROR] locator '{variable_locator}' got {matches} matches, please define a more specific locator")
-
+                    variable_name = resolve_selector(value.split(":")[1], "[ASSERT - ERROR]")
+                    variable_locator = get_unique_locator(page, variable_name, "[ASSERT - ERROR]")
                     num = int(number) - 1
                     locator = locator.nth(num)
-
-                    if not locator.is_visible():
-                        raise Exception(f"[ASSERT - ERROR] locator found but not visible: '{variable_locator}'")
-
                     pair.append(locator.text_content())
                     i += 2 if number else 1
                 else:
@@ -423,19 +393,10 @@ def handle_assert_match(cmd, page):
                     raise Exception(f"[ASSERT - ERROR] '{variable_name}' not defined")
                 to_return = variables[variable_name]
             elif value.startswith("txt:"):
-                variable_name = value.split(":")[1]
-                if variable_name not in ctx.locator_map:
-                    raise Exception(f"[ASSERT - ERROR] locator '{variable_name}' not declared")
-                defined_locator = ctx.locator_map[variable_name]
-                locator = page.locator(defined_locator)
-                matches = locator.count()
-                if matches == 0:
-                    raise Exception(f"[ASSERT - ERROR] locator '{variable_locator}' does not match any element")
-                elif matches > 1:
-                    raise Exception(f"[CLICK - ERROR] locator '{defined_locator}' got {matches} matches, please define a more specific locator")
-                to_return = locator.text_content()
+                variable_name = resolve_selector(value.split(":")[1], "[ASSERT - ERROR]")
+                defined_locator = get_unique_locator(page, variable_name, "[ASSERT - ERROR]")
+                to_return = defined_locator.text_content()
             return to_return
-
 
         first_value = maybe_num(has_variable_or_txt(children[0].value.strip('"'), page))
         second_value = maybe_num(has_variable_or_txt(children[1].value.strip('"'), page))
