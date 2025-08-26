@@ -375,7 +375,7 @@ def handle_assert_match(cmd, page):
                     variable_name = resolve_selector(value.split(":")[1], "[ASSERT - ERROR]")
                     variable_locator = get_unique_locator(page, variable_name, "[ASSERT - ERROR]")
                     num = int(number) - 1
-                    locator = locator.nth(num)
+                    locator = variable_locator.nth(num)
                     pair.append(locator.text_content())
                     i += 2 if number else 1
                 else:
