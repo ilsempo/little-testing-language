@@ -1,4 +1,4 @@
-from webtest.utils import generate_mocked_data, resolve_selector, get_unique_locator, resolve_selectors, assert_all_unique_and_visible
+from webtest.utils import generate_mocked_data, resolve_selector, get_locator, resolve_selectors, assert_all_unique_and_visible
 from lark import Token
 from pathlib import Path
 import yaml
@@ -32,7 +32,7 @@ def handle_click(cmd, page):
     variable = children[0]
 
     defined_locator = resolve_selector(variable, "[CLICK - ERROR]")
-    locator, _ = get_unique_locator(page, defined_locator, "[CLICK - ERROR]", require_clickable=True)
+    locator, _ = get_locator(page, defined_locator, "[CLICK - ERROR]", require_clickable=True)
 
     if len(children) > 1:
         number = int(children[1]) - 1
@@ -53,7 +53,7 @@ def handle_fill(cmd, page):
     defined_locator = resolve_selector(variable, "[FILL - ERROR]")
     valid_fills = {"tag": {"input", "textarea"},
                    "type": {"text", "email", "password", "search", "url", "''"}}
-    locator, _ = get_unique_locator(page, defined_locator, "[FILL - ERROR]")
+    locator, _ = get_locator(page, defined_locator, "[FILL - ERROR]")
     entered_text = cmd.children[0].children[1].value.strip('"')
 
     if "mocked:" in entered_text:
@@ -93,7 +93,7 @@ def handle_element_visible(cmd, page):
     present_or_not = children.children[1].value.strip()
     
     defined_locator = resolve_selector(variable, "[ELEMENT-VISIBLE - ERROR]")
-    _, element_is_visible = get_unique_locator(page, defined_locator, "[ELEMENT-VISIBLE - ERROR]")
+    _, element_is_visible = get_locator(page, defined_locator, "[ELEMENT-VISIBLE - ERROR]")
 
     if present_or_not == "is":
         if not element_is_visible:
@@ -136,7 +136,7 @@ def handle_fill_form(cmd, page):
         else:
             text = entered_text
 
-        page_locator, _ = get_unique_locator(page, entered_locator, "[FILL-FORM - ERROR]")
+        page_locator, _ = get_locator(page, entered_locator, "[FILL-FORM - ERROR]")
 
         valid_fills = { "tag": {"input", "textarea"},
                         "type": {"text", "email", "password", "search", "url", "''"}}
@@ -156,7 +156,7 @@ def handle_select(cmd, page):
     locator_variable = children.children[1].value.strip()
 
     defined_locator = resolve_selector(locator_variable, "[SELECT - ERROR]")
-    page_locator,_ = get_unique_locator(page, defined_locator, "[SELECT - ERROR]")
+    page_locator,_ = get_locator(page, defined_locator, "[SELECT - ERROR]")
 
     tag = page_locator.evaluate("element => element.tagName.toLowerCase()") == "select"
     if not tag:
@@ -184,7 +184,7 @@ def select_list_handler(cmd, page):
         entered_variable_name = rows[i].value.strip()
         solved_locator = resolve_selector(entered_variable_name, "[SELECT-LIST - ERROR]")
         option_to_select = rows[i + 1].value.strip('"')
-        defined_locator,_ = get_unique_locator(page, solved_locator, "[SELECT-LIST - ERROR]")
+        defined_locator,_ = get_locator(page, solved_locator, "[SELECT-LIST - ERROR]")
 
         tag = defined_locator.evaluate("element => element.tagName.toLowerCase()") == "select"
         if not tag:
@@ -209,7 +209,7 @@ def check_uncheck_handler(cmd, page):
                     "type": {"checkbox", "radio"}}
 
     defined_locator = resolve_selector(entered_locator, label_error)
-    page_locator,_= get_unique_locator(page, defined_locator, label_error)
+    page_locator,_= get_locator(page, defined_locator, label_error)
 
     tag = page_locator.evaluate("element => element.tagName.toLowerCase()")
     attribute = page_locator.get_attribute("type")
@@ -244,7 +244,7 @@ def handle_text_visible(cmd, page):
     entered_tag = children.children[2].value.strip("<>")
     present_in_page = children.children[3].value.strip('"')
     text_to_look = f"//{entered_tag}[contains(text(), '{entered_text}')]"
-    _, text_is_visible = get_unique_locator(page, text_to_look, "[CHECK-TEXT - ERROR]")
+    _, text_is_visible = get_locator(page, text_to_look, "[CHECK-TEXT - ERROR]")
 
     if present_in_page == "is":
         if not text_is_visible:
@@ -371,11 +371,17 @@ def handle_assert_match(cmd, page):
             if children[i].type == "COMPLEX_VALUE":
                 value = children[i].value.strip('"')
                 number = children[i + 1] if i + 1 < len(children) else None
+
                 if value.startswith("txt:"):
                     variable_name = resolve_selector(value.split(":")[1], "[ASSERT - ERROR]")
-                    variable_locator = get_unique_locator(page, variable_name, "[ASSERT - ERROR]")
+                    locator,_ = get_locator(page, variable_name, "[ASSERT - ERROR]", require_visible=False, unique=False)
+                    matches = locator.count()
+
+                    if matches > 1 and not number:
+                        raise Exception(f"[ASSERT - ERROR] locator '{variable_name}' got {matches} matches, please define a more specific locator")
+
                     num = int(number) - 1
-                    locator = variable_locator.nth(num)
+                    locator = locator.nth(num)
                     pair.append(locator.text_content())
                     i += 2 if number else 1
                 else:
@@ -394,7 +400,7 @@ def handle_assert_match(cmd, page):
                 to_return = variables[variable_name]
             elif value.startswith("txt:"):
                 variable_name = resolve_selector(value.split(":")[1], "[ASSERT - ERROR]")
-                defined_locator = get_unique_locator(page, variable_name, "[ASSERT - ERROR]")
+                defined_locator = get_locator(page, variable_name, "[ASSERT - ERROR]", require_visible=False)
                 to_return = defined_locator.text_content()
             return to_return
 
@@ -405,3 +411,5 @@ def handle_assert_match(cmd, page):
             raise Exception(f"[ASSERT - ERROR] '{first_value}' is different that '{second_value}'")
 
         print(f"[ASSERT] '{first_value}' matches with '{second_value}'")
+
+    print(f"[ASSERT] '{pair[0]}' matches with '{pair[1]}'")

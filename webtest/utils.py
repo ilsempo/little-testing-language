@@ -46,7 +46,7 @@ def resolve_selectors(entered_locators, label_error):
         raise Exception(f"{label_error} undefined locators: {missing}")
     return {loc: ctx.locator_map[loc] for loc in entered_locators}
 
-def get_unique_locator(page, selector, label_error, require_visible=True, require_clickable=False, timeout_ms=5000):
+def get_locator(page, selector, label_error, require_visible=True, require_clickable=False, timeout_ms=5000, unique=True):
     loc = page.locator(selector)
     try:
         loc.first.wait_for(state="attached", timeout=timeout_ms)
@@ -54,12 +54,14 @@ def get_unique_locator(page, selector, label_error, require_visible=True, requir
         if loc.count() == 0:
             raise Exception(f"{label_error} locator '{selector}' does not match any element")
 
-    count = loc.count()
-    if count == 0:
-        raise Exception(f"{label_error} locator '{selector}' does not match any element")
-    if count > 1:
-        raise Exception(f"{label_error} locator '{selector}' matches more than one element, please define a more specific locator")
+    if unique:
+        count = loc.count()
+        if count == 0:
+            raise Exception(f"{label_error} locator '{selector}' does not match any element")
+        if count > 1:
+            raise Exception(f"{label_error} locator '{selector}' matches more than one element, please define a more specific locator")
 
+    is_visible = None
     if require_visible:
         is_visible = False
         try:
@@ -80,7 +82,7 @@ def assert_all_unique_and_visible(page, selectors_dict, label_error, timeout_ms=
     result = {}
     for name, selector in selectors_dict.items():
         try:
-            result[name] = get_unique_locator(page, selector, label_error, require_visible=True, timeout_ms=timeout_ms)
+            result[name] = get_locator(page, selector, label_error, require_visible=True, timeout_ms=timeout_ms)
         except Exception as e:
             errors.append(f"{name} -> {e}")
     if errors:
