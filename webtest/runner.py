@@ -16,11 +16,11 @@ def run_webtest(file_path, headless=True):
 
     tree = ctx.parser.parse(script)
 
-    def execute_commands(page):
+    def execute_commands():
         for cmd in tree.children:
             handler = command_handlers.get(cmd.children[0].data)
             if handler:
-                handler(cmd, page)
+                handler(cmd)
             else:
                 print(f"command not supported: {cmd.children[0].data}")
 

@@ -46,18 +46,36 @@ def resolve_selectors(entered_locators, label_error):
         raise Exception(f"{label_error} undefined locators: {missing}")
     return {loc: ctx.locator_map[loc] for loc in entered_locators}
 
-def get_locator(page, selector, label_error, require_visible=True, require_clickable=False, timeout_ms=5000, unique=True):
-    loc = page.locator(selector)
+def resolve_prefix(prefix, entered_value, variable_name=None, variables=None, locator_variable=None, label_error=None):
+    if prefix == "mocked:":
+        text = generate_mocked_data(entered_value)
+    elif prefix == "var:":
+        if not variable_name in variables:
+            raise Exception(f"[FILL] error, vairable '{variable_name}' not defined")
+        text = variables[variable_name]
+    elif prefix == "txt:":
+        if not all(locator_variable, label_error):
+            raise Exception(f"for txt: prefix locator_variable and label_error needed")
+        solved_selector = resolve_selector(locator_variable, label_error)
+        page_selector = get_locator(solved_selector, label_error)
+        text = page_selector.text_content()
+    else:
+        raise Exception(f"prefix {prefix} is not valid")
+    return text
+
+def get_locator(selector, label_error, require_visible=True, require_clickable=False, timeout_ms=5000, unique=True):
+    loc = ctx.page.locator(selector)
     try:
         loc.first.wait_for(state="attached", timeout=timeout_ms)
     except PWTimeoutError:
         if loc.count() == 0:
             raise Exception(f"{label_error} locator '{selector}' does not match any element")
 
+    count = loc.count()
+    if count == 0:
+        raise Exception(f"{label_error} locator '{selector}' does not match any element")
+
     if unique:
-        count = loc.count()
-        if count == 0:
-            raise Exception(f"{label_error} locator '{selector}' does not match any element")
         if count > 1:
             raise Exception(f"{label_error} locator '{selector}' matches more than one element, please define a more specific locator")
 
@@ -77,12 +95,12 @@ def get_locator(page, selector, label_error, require_visible=True, require_click
 
     return loc, is_visible
 
-def assert_all_unique_and_visible(page, selectors_dict, label_error, timeout_ms=5000):
+def assert_all_unique_and_visible(selectors_dict, label_error, timeout_ms=5000):
     errors = []
     result = {}
     for name, selector in selectors_dict.items():
         try:
-            result[name] = get_locator(page, selector, label_error, require_visible=True, timeout_ms=timeout_ms)
+            result[name] = get_locator(selector, label_error, require_visible=True, timeout_ms=timeout_ms)
         except Exception as e:
             errors.append(f"{name} -> {e}")
     if errors:

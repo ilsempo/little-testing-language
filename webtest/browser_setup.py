@@ -1,12 +1,14 @@
 from playwright.sync_api import sync_playwright
+from webtest.context import ctx
 
 def browser_init(runnable_funct, headless=True):
     playwright = sync_playwright().start()
     browser = playwright.chromium.launch(headless=headless, args=["--start-maximized"], slow_mo=250)
     context = browser.new_context(no_viewport=True)
     page = context.new_page()
+    ctx.page = page
     try:
-        runnable_funct(page)
+        runnable_funct()
     except Exception as e:
         print(f"error with function: {e}")
         raise

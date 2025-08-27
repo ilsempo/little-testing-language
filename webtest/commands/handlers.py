@@ -16,23 +16,23 @@ def register(name):
     return decorator
 
 @register("visit")
-def handle_visit(cmd, page):
+def handle_visit(cmd):
     import tldextract
     url = cmd.children[0].children[0].value.strip()
     print(f"[VISIT] {url}")
-    page.goto(url)
-    ready_state = page.evaluate("() => document.readyState")
+    ctx.page.goto(url)
+    ready_state = ctx.page.evaluate("() => document.readyState")
     if ready_state == "complete":
         ext = tldextract.extract(url)
-        assert ext.domain in page.url, f"something went wrong with URL, expected URL: {url}, actual URL {page.url}"
+        assert ext.domain in ctx.page.url, f"something went wrong with URL, expected URL: {url}, actual URL {ctx.page.url}"
 
 @register("click")
-def handle_click(cmd, page):
+def handle_click(cmd):
     children = cmd.children[0].children
     variable = children[0]
 
     defined_locator = resolve_selector(variable, "[CLICK - ERROR]")
-    locator, _ = get_locator(page, defined_locator, "[CLICK - ERROR]", require_clickable=True)
+    locator, _ = get_locator(defined_locator, "[CLICK - ERROR]", require_clickable=True)
 
     if len(children) > 1:
         number = int(children[1]) - 1
@@ -47,18 +47,18 @@ def handle_click(cmd, page):
 
 
 @register("fill")
-def handle_fill(cmd, page):
+def handle_fill(cmd):
     variable = cmd.children[0].children[0]
 
     defined_locator = resolve_selector(variable, "[FILL - ERROR]")
     valid_fills = {"tag": {"input", "textarea"},
                    "type": {"text", "email", "password", "search", "url", "''"}}
-    locator, _ = get_locator(page, defined_locator, "[FILL - ERROR]")
+    locator, _ = get_locator(defined_locator, "[FILL - ERROR]")
     entered_text = cmd.children[0].children[1].value.strip('"')
 
-    if "mocked:" in entered_text:
+    if entered_text.startswith("mocked:"):
         text = generate_mocked_data(entered_text)
-    elif "var:" in entered_text:
+    elif entered_text.startswith("var:"):
         variable_name = entered_text.split(":")[1]
 
         if not variable_name in variables:
@@ -75,25 +75,25 @@ def handle_fill(cmd, page):
         locator.fill(text)
 
 @register("check_page")
-def handle_check_page(cmd, page):
+def handle_check_page(cmd):
     page_name = " ".join(token.value for token in cmd.children[0].children if isinstance(token, Token) and token.type == "NAME")
     rows = cmd.children[0].children[1].children
     entered_locators = {row.value.strip() for row in rows}
 
     verified_locators = resolve_selectors(entered_locators, "[VERIFY-PAGE - ERROR]")
     
-    assert_all_unique_and_visible(page, verified_locators, "[VERIFY-PAGE - ERROR]")
+    assert_all_unique_and_visible(verified_locators, "[VERIFY-PAGE - ERROR]")
 
     print(f"[VERIFY-PAGE] {page_name} page loaded correctly")
 
 @register("element_visible")
-def handle_element_visible(cmd, page):
+def handle_element_visible(cmd):
     children = cmd.children[0]
     variable = children.children[0].value.strip()
     present_or_not = children.children[1].value.strip()
     
     defined_locator = resolve_selector(variable, "[ELEMENT-VISIBLE - ERROR]")
-    _, element_is_visible = get_locator(page, defined_locator, "[ELEMENT-VISIBLE - ERROR]")
+    _, element_is_visible = get_locator(defined_locator, "[ELEMENT-VISIBLE - ERROR]")
 
     if present_or_not == "is":
         if not element_is_visible:
@@ -105,7 +105,7 @@ def handle_element_visible(cmd, page):
         print(f"[ELEMENT-VISIBLE] element {variable} is not visible in page")
 
 @register("define_locator")
-def handle_define(cmd, _):
+def handle_define(cmd):
     children = cmd.children[0]
     defined_locator = children.children[1].value.strip()
     variable = children.children[0].value.strip()
@@ -114,7 +114,7 @@ def handle_define(cmd, _):
     ctx.locator_map[variable] = defined_locator
 
 @register("fill_form")
-def handle_fill_form(cmd, page):
+def handle_fill_form(cmd):
     rows = cmd.children[0].children
     variable_locators = {token.value.strip() for token in rows if isinstance(token, Token) and token.type == "NAME"}
     resolve_selectors(variable_locators, "[FILL-FORM - ERROR]")
@@ -124,9 +124,9 @@ def handle_fill_form(cmd, page):
         entered_locator = resolve_selector(locator_variable_name, "[FILL-FORM - ERROR]")
         entered_text = rows[i + 1].value.strip('"')
 
-        if "mocked:" in entered_text:
+        if entered_text.startswith("mocked:"):
             text = generate_mocked_data(entered_text)
-        elif "var:" in entered_text:
+        elif entered_text.startswith("var:"):
             variable_name = entered_text.split(":")[1]
 
             if not variable_name in variables:
@@ -136,7 +136,7 @@ def handle_fill_form(cmd, page):
         else:
             text = entered_text
 
-        page_locator, _ = get_locator(page, entered_locator, "[FILL-FORM - ERROR]")
+        page_locator, _ = get_locator(entered_locator, "[FILL-FORM - ERROR]")
 
         valid_fills = { "tag": {"input", "textarea"},
                         "type": {"text", "email", "password", "search", "url", "''"}}
@@ -150,13 +150,13 @@ def handle_fill_form(cmd, page):
     print(f"[FILL-FORM] form filled successfully")
 
 @register("select_tag")
-def handle_select(cmd, page):
+def handle_select(cmd):
     children = cmd.children[0]
     option_to_select = children.children[0].value.strip('"')
     locator_variable = children.children[1].value.strip()
 
     defined_locator = resolve_selector(locator_variable, "[SELECT - ERROR]")
-    page_locator,_ = get_locator(page, defined_locator, "[SELECT - ERROR]")
+    page_locator,_ = get_locator(defined_locator, "[SELECT - ERROR]")
 
     tag = page_locator.evaluate("element => element.tagName.toLowerCase()") == "select"
     if not tag:
@@ -175,7 +175,7 @@ def handle_select(cmd, page):
     print(f"[SELECT] '{option_to_select}' option selected")
 
 @register("select_list")
-def select_list_handler(cmd, page):
+def select_list_handler(cmd):
     rows = cmd.children[0].children
     variable_locators = {token.value.strip() for token in rows if isinstance(token, Token) and token.type == "NAME"}
     resolve_selectors(variable_locators, "[SELECT-LIST - ERROR]")
@@ -184,7 +184,7 @@ def select_list_handler(cmd, page):
         entered_variable_name = rows[i].value.strip()
         solved_locator = resolve_selector(entered_variable_name, "[SELECT-LIST - ERROR]")
         option_to_select = rows[i + 1].value.strip('"')
-        defined_locator,_ = get_locator(page, solved_locator, "[SELECT-LIST - ERROR]")
+        defined_locator,_ = get_locator(solved_locator, "[SELECT-LIST - ERROR]")
 
         tag = defined_locator.evaluate("element => element.tagName.toLowerCase()") == "select"
         if not tag:
@@ -198,7 +198,7 @@ def select_list_handler(cmd, page):
     print(f"[SELECT-LIST] all options selected")
 
 @register("checkbox_check")
-def check_uncheck_handler(cmd, page):
+def check_uncheck_handler(cmd):
     children = cmd.children[0]
     action = children.children[0].value.strip()
     entered_locator = children.children[1].value.strip()
@@ -209,7 +209,7 @@ def check_uncheck_handler(cmd, page):
                     "type": {"checkbox", "radio"}}
 
     defined_locator = resolve_selector(entered_locator, label_error)
-    page_locator,_= get_locator(page, defined_locator, label_error)
+    page_locator,_= get_locator(defined_locator, label_error)
 
     tag = page_locator.evaluate("element => element.tagName.toLowerCase()")
     attribute = page_locator.get_attribute("type")
@@ -230,7 +230,7 @@ def check_uncheck_handler(cmd, page):
     print(f"{label} element {entered_locator}")
 
 @register("text_visible")
-def handle_text_visible(cmd, page):
+def handle_text_visible(cmd):
     children = cmd.children[0]
     entered_text = children.children[1].value.strip('"')
 
@@ -244,7 +244,7 @@ def handle_text_visible(cmd, page):
     entered_tag = children.children[2].value.strip("<>")
     present_in_page = children.children[3].value.strip('"')
     text_to_look = f"//{entered_tag}[contains(text(), '{entered_text}')]"
-    _, text_is_visible = get_locator(page, text_to_look, "[CHECK-TEXT - ERROR]")
+    _, text_is_visible = get_locator(text_to_look, "[CHECK-TEXT - ERROR]")
 
     if present_in_page == "is":
         if not text_is_visible:
@@ -256,7 +256,7 @@ def handle_text_visible(cmd, page):
         print(f"[CHECK-TEXT] text '{entered_text}' is not visible in page")
 
 @register("import_locators")
-def handle_import_locators(cmd, _):
+def handle_import_locators(cmd):
     filename = cmd.children[0].children[0].value.strip()
     locators_path = Path(f"tests/locators/{filename}.yaml")
 
@@ -276,7 +276,7 @@ def handle_import_locators(cmd, _):
         ctx.locator_map.update(locators)
 
 @register("use_function")
-def handle_define_function(cmd, page):
+def handle_define_function(cmd):
     entered_function_name = cmd.children[0].children[0].value.strip()
 
     if not ctx.functions:
@@ -291,11 +291,11 @@ def handle_define_function(cmd, page):
 
     for command in commands:
         decorator_name = command.children[0].data
-        command_handlers[decorator_name](command, page)
+        command_handlers[decorator_name](command)
 
 
 @register("save_variable")
-def handle_save_variable(cmd, page):
+def handle_save_variable(cmd):
     children = cmd.children[0].children
     to_save_in_variable = children[0].value.strip('"')
     entered_variable_name = children[1].value.strip()
@@ -305,50 +305,37 @@ def handle_save_variable(cmd, page):
     elif to_save_in_variable.startswith("txt:"):
         variable_locator = resolve_selector(to_save_in_variable.split(":")[1], "[SAVE-VARIABLE - ERROR]")
         entered_variable_name = children[2].value.strip()
-
-        defined_locator = ctx.locator_map[variable_locator]
-        locator = page.locator(defined_locator)
-        matches = locator.count()
-
-        if matches == 0:
-            raise Exception(f"[SAVE-VARIABLE - ERROR] locator '{variable_locator}' does not match any element")
+        defined_locator = get_locator(variable_locator, "[UPLOAD-FILE]", unique=False)
 
         if len(children) > 2:
             number = int(children[1]) - 1
             locator = locator.nth(number)
         else:
+            matches = locator.count()
             if matches > 1:
                 raise Exception(f"[CLICK - ERROR] locator '{defined_locator}' got {matches} matches, please define a more specific locator")
-
-        if not locator.is_visible():
-            raise Exception(f"[SAVE-VARIABLE - ERROR] locator found but not visible: '{variable_locator}'")
 
         to_save_in_variable = locator.text_content()
 
     variables[entered_variable_name] = to_save_in_variable
 
 @register("upload_file")
-def handle_upload_file(cmd, page):
-    entered_file_name = cmd.children[0].children[0].value.strip('"')
-    locator_variable = cmd.children[0].children[1].value.strip()
+def handle_upload_file(cmd):
+    children = cmd.children[0]
+    entered_file_name = children.children[0].value.strip('"')
+    locator_variable = resolve_selector(children.children[1].value.strip(), "[UPLOAD-FILE]")
     file_path = Path(f"tests/files/{entered_file_name}")
 
     if not file_path.exists():
         raise Exception(f"[UPLOAD-FILE] error, file '{entered_file_name}' not found")
 
-    if not locator_variable in ctx.locator_map:
-        raise Exception(f"[UPLOAD-FILE] error, '{locator_variable}' not declared")
-
-    page_locator = page.locator(ctx.locator_map[locator_variable])
+    page_locator = get_locator(locator_variable, "[UPLOAD-FILE]")
     tag = page_locator.evaluate("element => element.tagName.toLowerCase()")
 
     if tag != "input" or page_locator.get_attribute("type") != "file":
         raise Exception(f"[UPLOAD-FILE] failed, element is not an input or is an input but not type file")
 
-    if not (page_locator.is_visible() and page_locator.count() > 0):
-        raise Exception(f"[UPLOAD-FILE] failed, locator not found or not visible: {locator_variable}: {ctx.locator_map[locator_variable]}")
-
-    page.set_input_files(ctx.locator_map[locator_variable], file_path)
+    ctx.page.set_input_files(ctx.locator_map[locator_variable], file_path)
 
 #FIXME
 # @register("accept_dismiss")
@@ -356,13 +343,13 @@ def handle_upload_file(cmd, page):
 #     print(cmd)
 
 @register("wait")
-def handle_wait(cmd,_):
+def handle_wait(cmd):
     seconds_to_wait = cmd.children[0].children[0].value
     time.sleep(int(seconds_to_wait))
     print(f"[WAIT] waited for {seconds_to_wait} seconds")
 
 @register("assert_match")
-def handle_assert_match(cmd, page):
+def handle_assert_match(cmd):
     children = cmd.children[0].children
     pair = []
     i = 0
@@ -374,7 +361,7 @@ def handle_assert_match(cmd, page):
 
                 if value.startswith("txt:"):
                     variable_name = resolve_selector(value.split(":")[1], "[ASSERT - ERROR]")
-                    locator,_ = get_locator(page, variable_name, "[ASSERT - ERROR]", require_visible=False, unique=False)
+                    locator,_ = get_locator(variable_name, "[ASSERT - ERROR]", require_visible=False, unique=False)
                     matches = locator.count()
 
                     if matches > 1 and not number:
@@ -404,8 +391,8 @@ def handle_assert_match(cmd, page):
                 to_return = defined_locator.text_content()
             return to_return
 
-        first_value = maybe_num(has_variable_or_txt(children[0].value.strip('"'), page))
-        second_value = maybe_num(has_variable_or_txt(children[1].value.strip('"'), page))
+        first_value = maybe_num(has_variable_or_txt(children[0].value.strip('"')))
+        second_value = maybe_num(has_variable_or_txt(children[1].value.strip('"')))
 
         if not first_value == second_value:
             raise Exception(f"[ASSERT - ERROR] '{first_value}' is different that '{second_value}'")
