@@ -1,4 +1,4 @@
-from webtest.utils import generate_mocked_data, resolve_selector, get_locator, resolve_selectors, assert_all_unique_and_visible
+from webtest.utils import resolve_selector, get_locator, resolve_selectors, assert_all_unique_and_visible, resolve_prefix
 from lark import Token
 from pathlib import Path
 import yaml
@@ -7,7 +7,6 @@ from webtest.utils import load_functions
 import time
 
 command_handlers = {}
-variables = {}
 
 def register(name):
     def decorator(funct):
@@ -19,12 +18,12 @@ def register(name):
 def handle_visit(cmd):
     import tldextract
     url = cmd.children[0].children[0].value.strip()
-    print(f"[VISIT] {url}")
     ctx.page.goto(url)
     ready_state = ctx.page.evaluate("() => document.readyState")
     if ready_state == "complete":
         ext = tldextract.extract(url)
         assert ext.domain in ctx.page.url, f"something went wrong with URL, expected URL: {url}, actual URL {ctx.page.url}"
+    print(f"[VISIT] {url}")
 
 @register("click")
 def handle_click(cmd):
@@ -32,11 +31,14 @@ def handle_click(cmd):
     variable = children[0]
 
     defined_locator = resolve_selector(variable, "[CLICK - ERROR]")
+    if len(children) > 1:
+        locator, _ = get_locator(defined_locator, "[CLICK - ERROR]", require_clickable=True, unique=False, loc_number=int(children[1]) - 1)
+
     locator, _ = get_locator(defined_locator, "[CLICK - ERROR]", require_clickable=True)
 
-    if len(children) > 1:
-        number = int(children[1]) - 1
-        locator = locator.nth(number)
+    # if len(children) > 1:
+    #     number = int(children[1]) - 1
+    #     locator = locator.nth(number)
 
     try:
         print(f"[CLICK] {variable}")
@@ -48,25 +50,15 @@ def handle_click(cmd):
 
 @register("fill")
 def handle_fill(cmd):
-    variable = cmd.children[0].children[0]
+    children = cmd.children[0]
+    variable = children.children[0]
 
     defined_locator = resolve_selector(variable, "[FILL - ERROR]")
     valid_fills = {"tag": {"input", "textarea"},
                    "type": {"text", "email", "password", "search", "url", "''"}}
     locator, _ = get_locator(defined_locator, "[FILL - ERROR]")
-    entered_text = cmd.children[0].children[1].value.strip('"')
-
-    if entered_text.startswith("mocked:"):
-        text = generate_mocked_data(entered_text)
-    elif entered_text.startswith("var:"):
-        variable_name = entered_text.split(":")[1]
-
-        if not variable_name in variables:
-            raise Exception(f"[FILL] error, vairable '{variable_name}' not defined")
-
-        text = variables[variable_name]
-    else:
-        text = entered_text
+    entered_text = children.children[1].value.strip('"')
+    text = resolve_prefix(entered_text, "[FILL - ERROR]")
 
     tag = locator.evaluate("element => element.tagName.toLowerCase()")
 
@@ -123,18 +115,7 @@ def handle_fill_form(cmd):
         locator_variable_name = rows[i].value.strip()
         entered_locator = resolve_selector(locator_variable_name, "[FILL-FORM - ERROR]")
         entered_text = rows[i + 1].value.strip('"')
-
-        if entered_text.startswith("mocked:"):
-            text = generate_mocked_data(entered_text)
-        elif entered_text.startswith("var:"):
-            variable_name = entered_text.split(":")[1]
-
-            if not variable_name in variables:
-                raise Exception(f"[FILL-FORM - ERROR] vairable {variable_name} not defined")
-
-            text = variables[variable_name]
-        else:
-            text = entered_text
+        text = resolve_prefix(entered_text, "[FILL-FORM - ERROR]")
 
         page_locator, _ = get_locator(entered_locator, "[FILL-FORM - ERROR]")
 
@@ -233,27 +214,20 @@ def check_uncheck_handler(cmd):
 def handle_text_visible(cmd):
     children = cmd.children[0]
     entered_text = children.children[1].value.strip('"')
-
-    if entered_text.startswith("var:"):
-        variable = entered_text.split(":")[1]
-
-        if variable not in variables:
-            raise Exception(f"[CHECK-TEXT - ERROR] variable {variable} not defined")
-        entered_text = variables[variable]
-
+    text = resolve_prefix(entered_text, "[CHECK-TEXT - ERROR]")
     entered_tag = children.children[2].value.strip("<>")
     present_in_page = children.children[3].value.strip('"')
-    text_to_look = f"//{entered_tag}[contains(text(), '{entered_text}')]"
+    text_to_look = f"//{entered_tag}[contains(text(), '{text}')]"
     _, text_is_visible = get_locator(text_to_look, "[CHECK-TEXT - ERROR]")
 
     if present_in_page == "is":
         if not text_is_visible:
-            raise Exception(f"[CHECK-TEXT - ERROR] text '{entered_text}' is not visible")
-        print(f"[CHECK-TEXT] text '{entered_text}' is visible in page")
+            raise Exception(f"[CHECK-TEXT - ERROR] text '{text}' is not visible")
+        print(f"[CHECK-TEXT] text '{text}' is visible in page")
     else:
         if text_is_visible:
-            raise Exception(f"[CHECK-TEXT - ERROR] text '{entered_text}' is visible but shouldn't be")
-        print(f"[CHECK-TEXT] text '{entered_text}' is not visible in page")
+            raise Exception(f"[CHECK-TEXT - ERROR] text '{text}' is visible but shouldn't be")
+        print(f"[CHECK-TEXT] text '{text}' is not visible in page")
 
 @register("import_locators")
 def handle_import_locators(cmd):
@@ -268,10 +242,6 @@ def handle_import_locators(cmd):
 
         if not isinstance(locators, dict):
             raise ValueError("[IMPORT-LOCATORS] YAML format invalid (must be key-value)")
-        
-        already_in_locator_map = {locator for locator in locators.keys() if locator in ctx.locator_map}
-        if already_in_locator_map:
-            print(f"[MERGE-ALERT] merging already defined locators: {already_in_locator_map}")
 
         ctx.locator_map.update(locators)
 
@@ -293,31 +263,18 @@ def handle_define_function(cmd):
         decorator_name = command.children[0].data
         command_handlers[decorator_name](command)
 
-
 @register("save_variable")
 def handle_save_variable(cmd):
     children = cmd.children[0].children
+    children_len = len(children)
     to_save_in_variable = children[0].value.strip('"')
-    entered_variable_name = children[1].value.strip()
+    entered_variable_name = children[1].value.strip() if children_len == 2 else children[2].value.strip()
+    print(children_len)
+    index = None if children_len == 2 else int(children[1] - 1)
+    print(index)
+    to_save_in_variable = resolve_prefix(to_save_in_variable, "[SAVE-VARIABLE - ERROR]", var_true=False, index=index)
 
-    if to_save_in_variable.startswith("mocked:"):
-        to_save_in_variable = generate_mocked_data(to_save_in_variable)
-    elif to_save_in_variable.startswith("txt:"):
-        variable_locator = resolve_selector(to_save_in_variable.split(":")[1], "[SAVE-VARIABLE - ERROR]")
-        entered_variable_name = children[2].value.strip()
-        defined_locator = get_locator(variable_locator, "[UPLOAD-FILE]", unique=False)
-
-        if len(children) > 2:
-            number = int(children[1]) - 1
-            locator = locator.nth(number)
-        else:
-            matches = locator.count()
-            if matches > 1:
-                raise Exception(f"[CLICK - ERROR] locator '{defined_locator}' got {matches} matches, please define a more specific locator")
-
-        to_save_in_variable = locator.text_content()
-
-    variables[entered_variable_name] = to_save_in_variable
+    ctx.variables[entered_variable_name] = to_save_in_variable
 
 @register("upload_file")
 def handle_upload_file(cmd):
@@ -329,13 +286,13 @@ def handle_upload_file(cmd):
     if not file_path.exists():
         raise Exception(f"[UPLOAD-FILE] error, file '{entered_file_name}' not found")
 
-    page_locator = get_locator(locator_variable, "[UPLOAD-FILE]")
+    page_locator,_ = get_locator(locator_variable, "[UPLOAD-FILE]")
     tag = page_locator.evaluate("element => element.tagName.toLowerCase()")
 
     if tag != "input" or page_locator.get_attribute("type") != "file":
         raise Exception(f"[UPLOAD-FILE] failed, element is not an input or is an input but not type file")
 
-    ctx.page.set_input_files(ctx.locator_map[locator_variable], file_path)
+    page_locator.set_input_files(file_path)
 
 #FIXME
 # @register("accept_dismiss")
@@ -348,6 +305,7 @@ def handle_wait(cmd):
     time.sleep(int(seconds_to_wait))
     print(f"[WAIT] waited for {seconds_to_wait} seconds")
 
+#FIXME finish with prefix thing
 @register("assert_match")
 def handle_assert_match(cmd):
     children = cmd.children[0].children
@@ -378,18 +336,7 @@ def handle_assert_match(cmd):
                 i += 1
     else:
         maybe_num = lambda s: int(s) if s.isdigit() else s
-        def has_variable_or_txt(value, page):
-            to_return = value
-            if value.startswith("var:"):
-                variable_name = value.split(":")[1]
-                if variable_name not in variables:
-                    raise Exception(f"[ASSERT - ERROR] '{variable_name}' not defined")
-                to_return = variables[variable_name]
-            elif value.startswith("txt:"):
-                variable_name = resolve_selector(value.split(":")[1], "[ASSERT - ERROR]")
-                defined_locator = get_locator(page, variable_name, "[ASSERT - ERROR]", require_visible=False)
-                to_return = defined_locator.text_content()
-            return to_return
+        has_variable_or_txt = lambda entered_value: resolve_prefix(entered_value)
 
         first_value = maybe_num(has_variable_or_txt(children[0].value.strip('"')))
         second_value = maybe_num(has_variable_or_txt(children[1].value.strip('"')))

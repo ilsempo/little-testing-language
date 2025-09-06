@@ -46,38 +46,52 @@ def resolve_selectors(entered_locators, label_error):
         raise Exception(f"{label_error} undefined locators: {missing}")
     return {loc: ctx.locator_map[loc] for loc in entered_locators}
 
-def resolve_prefix(prefix, entered_value, variable_name=None, variables=None, locator_variable=None, label_error=None):
-    if prefix == "mocked:":
-        text = generate_mocked_data(entered_value)
-    elif prefix == "var:":
-        if not variable_name in variables:
-            raise Exception(f"[FILL] error, vairable '{variable_name}' not defined")
-        text = variables[variable_name]
-    elif prefix == "txt:":
-        if not all(locator_variable, label_error):
-            raise Exception(f"for txt: prefix locator_variable and label_error needed")
-        solved_selector = resolve_selector(locator_variable, label_error)
-        page_selector = get_locator(solved_selector, label_error)
-        text = page_selector.text_content()
-    else:
+#FIXME resolver tema prefijos validos y no válidos
+def resolve_prefix(entered_value, label_error, mocked_true=True, var_true=True, txt_true=True, index=None):
+    prefix, _, arg = entered_value.partition(":")
+    valid_prefixes = {"mocked", "var", "txt"}
+
+    if arg and prefix not in valid_prefixes:
         raise Exception(f"prefix {prefix} is not valid")
+
+    text = entered_value
+
+    if mocked_true and prefix == "mocked":
+        text = generate_mocked_data(entered_value)
+
+    if var_true and prefix == "var":
+        if arg not in ctx.variables:
+            raise Exception(f"[FILL - ERROR] variable '{arg}' not defined")
+        text = ctx.variables[arg]
+
+    if txt_true and prefix == "txt":
+        solved_selector = resolve_selector(arg, label_error)
+        unique_needed = index is None
+        loc_number = index if index else None
+        page_selector,_ = get_locator(solved_selector, label_error, require_visible=False, unique=unique_needed, loc_number=loc_number)
+        text = (page_selector.text_content() or "").strip()
     return text
 
-def get_locator(selector, label_error, require_visible=True, require_clickable=False, timeout_ms=5000, unique=True):
+def get_locator(selector, label_error, require_visible=True, require_clickable=False, timeout_ms=5000, unique=True, loc_number=None):
     loc = ctx.page.locator(selector)
-    try:
-        loc.first.wait_for(state="attached", timeout=timeout_ms)
-    except PWTimeoutError:
-        if loc.count() == 0:
-            raise Exception(f"{label_error} locator '{selector}' does not match any element")
-
     count = loc.count()
+
     if count == 0:
         raise Exception(f"{label_error} locator '{selector}' does not match any element")
 
     if unique:
         if count > 1:
             raise Exception(f"{label_error} locator '{selector}' matches more than one element, please define a more specific locator")
+    else:
+        if not loc_number:
+            raise Exception(f"if element not unique, locator number must be provided")
+        loc = ctx.page.locator(selector).nth(loc_number)
+
+    try:
+        loc.wait_for(state="attached", timeout=timeout_ms)
+    except PWTimeoutError:
+        if loc.count() == 0:
+            raise Exception(f"{label_error} locator '{selector}' does not match any element")
 
     is_visible = None
     if require_visible:
@@ -95,12 +109,12 @@ def get_locator(selector, label_error, require_visible=True, require_clickable=F
 
     return loc, is_visible
 
-def assert_all_unique_and_visible(selectors_dict, label_error, timeout_ms=5000):
+def assert_all_unique_and_visible(selectors_dict, label_error):
     errors = []
     result = {}
     for name, selector in selectors_dict.items():
         try:
-            result[name] = get_locator(selector, label_error, require_visible=True, timeout_ms=timeout_ms)
+            result[name] = get_locator(selector, label_error)
         except Exception as e:
             errors.append(f"{name} -> {e}")
     if errors:

@@ -3,5 +3,6 @@ class WebtestContext:
     functions = {}
     locator_map = {}
     page = None
+    variables = {}
 
 ctx = WebtestContext()
