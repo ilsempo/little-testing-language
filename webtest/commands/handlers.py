@@ -29,16 +29,11 @@ def handle_visit(cmd):
 def handle_click(cmd):
     children = cmd.children[0].children
     variable = children[0]
-
+    index = int(children[1]) - 1 if len(children) > 1 else None
+    unique_needed = index is None
     defined_locator = resolve_selector(variable, "[CLICK - ERROR]")
-    if len(children) > 1:
-        locator, _ = get_locator(defined_locator, "[CLICK - ERROR]", require_clickable=True, unique=False, loc_number=int(children[1]) - 1)
 
-    locator, _ = get_locator(defined_locator, "[CLICK - ERROR]", require_clickable=True)
-
-    # if len(children) > 1:
-    #     number = int(children[1]) - 1
-    #     locator = locator.nth(number)
+    locator,_ = get_locator(defined_locator, "[CLICK - ERROR]", require_clickable=True, unique=unique_needed, loc_number=index)
 
     try:
         print(f"[CLICK] {variable}")
@@ -214,7 +209,7 @@ def check_uncheck_handler(cmd):
 def handle_text_visible(cmd):
     children = cmd.children[0]
     entered_text = children.children[1].value.strip('"')
-    text = resolve_prefix(entered_text, "[CHECK-TEXT - ERROR]")
+    text = resolve_prefix(entered_text, "[CHECK-TEXT - ERROR]", mocked_true=False)
     entered_tag = children.children[2].value.strip("<>")
     present_in_page = children.children[3].value.strip('"')
     text_to_look = f"//{entered_tag}[contains(text(), '{text}')]"
@@ -269,9 +264,7 @@ def handle_save_variable(cmd):
     children_len = len(children)
     to_save_in_variable = children[0].value.strip('"')
     entered_variable_name = children[1].value.strip() if children_len == 2 else children[2].value.strip()
-    print(children_len)
     index = None if children_len == 2 else int(children[1] - 1)
-    print(index)
     to_save_in_variable = resolve_prefix(to_save_in_variable, "[SAVE-VARIABLE - ERROR]", var_true=False, index=index)
 
     ctx.variables[entered_variable_name] = to_save_in_variable
@@ -305,7 +298,6 @@ def handle_wait(cmd):
     time.sleep(int(seconds_to_wait))
     print(f"[WAIT] waited for {seconds_to_wait} seconds")
 
-#FIXME finish with prefix thing
 @register("assert_match")
 def handle_assert_match(cmd):
     children = cmd.children[0].children
@@ -315,28 +307,17 @@ def handle_assert_match(cmd):
         while i < len(children):
             if children[i].type == "COMPLEX_VALUE":
                 value = children[i].value.strip('"')
-                number = children[i + 1] if i + 1 < len(children) else None
-
-                if value.startswith("txt:"):
-                    variable_name = resolve_selector(value.split(":")[1], "[ASSERT - ERROR]")
-                    locator,_ = get_locator(variable_name, "[ASSERT - ERROR]", require_visible=False, unique=False)
-                    matches = locator.count()
-
-                    if matches > 1 and not number:
-                        raise Exception(f"[ASSERT - ERROR] locator '{variable_name}' got {matches} matches, please define a more specific locator")
-
-                    num = int(number) - 1
-                    locator = locator.nth(num)
-                    pair.append(locator.text_content())
-                    i += 2 if number else 1
-                else:
-                    pair.append(value)
-                    i += 1
-            else: 
+                number = children[i + 1] if i + 1 < len(children) and children[i + 1].type == "INT" else None
+                value_solved = resolve_prefix(value, "[ASSERT - ERROR]", mocked_true=False, index=number)
+                i += 2 if number else 1
+                pair.append(value_solved)
+            else:
                 i += 1
+
+        print(f"[ASSERT] '{pair[0]}' matches with '{pair[1]}'")
     else:
         maybe_num = lambda s: int(s) if s.isdigit() else s
-        has_variable_or_txt = lambda entered_value: resolve_prefix(entered_value)
+        has_variable_or_txt = lambda entered_value: resolve_prefix(entered_value, "[ASSERT - ERROR]", mocked_true=False)
 
         first_value = maybe_num(has_variable_or_txt(children[0].value.strip('"')))
         second_value = maybe_num(has_variable_or_txt(children[1].value.strip('"')))
@@ -345,5 +326,3 @@ def handle_assert_match(cmd):
             raise Exception(f"[ASSERT - ERROR] '{first_value}' is different that '{second_value}'")
 
         print(f"[ASSERT] '{first_value}' matches with '{second_value}'")
-
-    print(f"[ASSERT] '{pair[0]}' matches with '{pair[1]}'")

@@ -51,25 +51,29 @@ def resolve_prefix(entered_value, label_error, mocked_true=True, var_true=True, 
     prefix, _, arg = entered_value.partition(":")
     valid_prefixes = {"mocked", "var", "txt"}
 
+    if (not mocked_true and prefix == "mocked") or (not var_true and prefix == "var") or (not txt_true and prefix == "txt"):
+        raise Exception(f"this step does not support {prefix} prefix")
+
     if arg and prefix not in valid_prefixes:
         raise Exception(f"prefix {prefix} is not valid")
 
     text = entered_value
 
-    if mocked_true and prefix == "mocked":
+    if prefix == "mocked":
         text = generate_mocked_data(entered_value)
 
-    if var_true and prefix == "var":
+    if prefix == "var":
         if arg not in ctx.variables:
             raise Exception(f"[FILL - ERROR] variable '{arg}' not defined")
         text = ctx.variables[arg]
 
-    if txt_true and prefix == "txt":
+    if prefix == "txt":
         solved_selector = resolve_selector(arg, label_error)
         unique_needed = index is None
         loc_number = index if index else None
         page_selector,_ = get_locator(solved_selector, label_error, require_visible=False, unique=unique_needed, loc_number=loc_number)
         text = (page_selector.text_content() or "").strip()
+
     return text
 
 def get_locator(selector, label_error, require_visible=True, require_clickable=False, timeout_ms=5000, unique=True, loc_number=None):
