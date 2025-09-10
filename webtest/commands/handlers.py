@@ -264,7 +264,7 @@ def handle_save_variable(cmd):
     children_len = len(children)
     to_save_in_variable = children[0].value.strip('"')
     entered_variable_name = children[1].value.strip() if children_len == 2 else children[2].value.strip()
-    index = None if children_len == 2 else int(children[1] - 1)
+    index = None if children_len == 2 else int(children[1])
     to_save_in_variable = resolve_prefix(to_save_in_variable, "[SAVE-VARIABLE - ERROR]", var_true=False, index=index)
 
     ctx.variables[entered_variable_name] = to_save_in_variable

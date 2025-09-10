@@ -46,7 +46,6 @@ def resolve_selectors(entered_locators, label_error):
         raise Exception(f"{label_error} undefined locators: {missing}")
     return {loc: ctx.locator_map[loc] for loc in entered_locators}
 
-#FIXME resolver tema prefijos validos y no válidos
 def resolve_prefix(entered_value, label_error, mocked_true=True, var_true=True, txt_true=True, index=None):
     prefix, _, arg = entered_value.partition(":")
     valid_prefixes = {"mocked", "var", "txt"}
@@ -70,7 +69,7 @@ def resolve_prefix(entered_value, label_error, mocked_true=True, var_true=True, 
     if prefix == "txt":
         solved_selector = resolve_selector(arg, label_error)
         unique_needed = index is None
-        loc_number = index if index else None
+        loc_number = index - 1 if index else None
         page_selector,_ = get_locator(solved_selector, label_error, require_visible=False, unique=unique_needed, loc_number=loc_number)
         text = (page_selector.text_content() or "").strip()
 
@@ -87,7 +86,7 @@ def get_locator(selector, label_error, require_visible=True, require_clickable=F
         if count > 1:
             raise Exception(f"{label_error} locator '{selector}' matches more than one element, please define a more specific locator")
     else:
-        if not loc_number:
+        if loc_number is None:
             raise Exception(f"if element not unique, locator number must be provided")
         loc = ctx.page.locator(selector).nth(loc_number)
 
