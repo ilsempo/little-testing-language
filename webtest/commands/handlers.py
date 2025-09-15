@@ -326,3 +326,11 @@ def handle_assert_match(cmd):
             raise Exception(f"[ASSERT - ERROR] '{first_value}' is different that '{second_value}'")
 
         print(f"[ASSERT] '{first_value}' matches with '{second_value}'")
+
+@register("hover_over")
+def handle_hover_over(cmd):
+    children = cmd.children[0].children[0]
+    variable_locator = resolve_selector(children, ["HOVER - ERROR"])
+    locator,_ = get_locator(variable_locator, ["HOVER - ERROR"])
+    locator.hover(timeout=3000)
+    print(f"[HOVERED] over '{children} 'element")
