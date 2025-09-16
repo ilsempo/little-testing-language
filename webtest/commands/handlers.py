@@ -334,3 +334,4 @@ def handle_hover_over(cmd):
     locator,_ = get_locator(variable_locator, ["HOVER - ERROR"])
     locator.hover(timeout=3000)
     print(f"[HOVERED] over '{children} 'element")
+    
