@@ -29,7 +29,7 @@ def handle_visit(cmd):
 def handle_click(cmd):
     children = cmd.children[0].children
     variable = children[0]
-    index = int(children[1]) - 1 if len(children) > 1 else None
+    index = int(children[1]) if len(children) > 1 else None
     unique_needed = index is None
     defined_locator = resolve_selector(variable, "[CLICK - ERROR]")
 
@@ -329,8 +329,38 @@ def handle_assert_match(cmd):
 
 @register("hover_over")
 def handle_hover_over(cmd):
-    children = cmd.children[0].children[0]
-    variable_locator = resolve_selector(children, ["HOVER - ERROR"])
-    locator,_ = get_locator(variable_locator, ["HOVER - ERROR"])
-    locator.hover(timeout=3000)
-    print(f"[HOVERED] over '{children} 'element")
+    children = cmd.children[0].children
+    children_len = len(children)
+    index = None if children_len == 1 else int(children[1])
+    is_unique = index is None
+    variable_locator = resolve_selector(children[0], "[HOVER - ERROR]")
+    locator,_ = get_locator(variable_locator, "[HOVER - ERROR]", unique=is_unique, loc_number=index)
+    box = locator.bounding_box()
+    if box:
+        x = box["x"] + box["width"] / 2
+        y = box["y"] + box["height"] / 2
+        ctx.page.mouse.move(x, y, steps=10)
+    locator.hover(timeout=5000)
+    print(f"[HOVER] over '{children[0]} 'element")
+
+@register("send_key")
+def send_key_command(cmd):
+    children = cmd.children[0].children
+    children_len = len(children)
+    index = None if children_len == 2 else int(children[2])
+    is_unique = index is None
+    variable_locator = resolve_selector(children[1], "[SEND-KEY - ERROR]")
+    locator,_ = get_locator(variable_locator, "[SEND-KEY - ERROR]", unique=is_unique, loc_number=index)
+    locator.press(f"{children[0].capitalize()}", timeout=5000)
+    print(f"[SEND-KEY] '{children[0]}' sent to '{children[1]}' element")
+
+'''
+agregar la posibilidad de guardar varios valores en una lista
+esto sirve para traerse todos los textos de un elemento
+    raw_lines = locator.inner_text().splitlines()
+    lines = [
+        re.sub(r"[^\w\s>$€.,-]", "", line).strip()
+        for line in raw_lines
+        if line.strip()
+    ]
+'''

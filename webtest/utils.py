@@ -69,7 +69,7 @@ def resolve_prefix(entered_value, label_error, mocked_true=True, var_true=True, 
     if prefix == "txt":
         solved_selector = resolve_selector(arg, label_error)
         unique_needed = index is None
-        loc_number = index - 1 if index else None
+        loc_number = index if index else None
         page_selector,_ = get_locator(solved_selector, label_error, require_visible=False, unique=unique_needed, loc_number=loc_number)
         text = (page_selector.text_content() or "").strip()
 
@@ -88,7 +88,7 @@ def get_locator(selector, label_error, require_visible=True, require_clickable=F
     else:
         if loc_number is None:
             raise Exception(f"if element not unique, locator number must be provided")
-        loc = ctx.page.locator(selector).nth(loc_number)
+        loc = ctx.page.locator(selector).nth(loc_number - 1)
 
     try:
         loc.wait_for(state="attached", timeout=timeout_ms)

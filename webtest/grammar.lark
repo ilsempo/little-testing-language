@@ -29,6 +29,7 @@ DISMISS:    "dismiss"
 _WAIT:      "wait"
 _ASSERT:    "assert"
 _HOVER:     "hover"
+_SEND:      "send"
 
 // =========================
 // Tokens: Prepositions / Connectors
@@ -55,6 +56,7 @@ _FILE:           "file"
 _INPUT:          "input"
 _DIALOG:         "dialog"
 _SECONDS:        "seconds"
+_KEY:            "key"
 
 // =========================
 // Tokens: Qualifiers / Internal Verbs
@@ -69,6 +71,7 @@ _MATCHES:  "matches"
 // IS_NOT debe ir antes que IS para capturar "is not"
 IS_NOT: "is" WS_INLINE "not"
 IS:     "is"
+_TO:    "to"
 
 // =========================
 // Tokens: Símbolos
@@ -98,6 +101,7 @@ PARAM:         /[^\s\n|]+/
 TABLE_PARAM:   /[^\n|]+/
 SELECTOR:      /[^\n]+/
 TAG:           /<[^<>]*>/
+KEYNAME:       /[A-Z][A-Za-z0-9_]*/
 COMPLEX_VALUE: STRING
              | INT
              | NAME
@@ -131,6 +135,7 @@ command: visit_command
        | wait_command
        | assert_matches_command
        | hover_over_command
+       | send_key_command
 
 visit_command: _VISIT PARAM -> visit
 click_command: _CLICK PARAM _ELEMENT_KW? INT? -> click
@@ -167,6 +172,8 @@ wait_command: _WAIT INT _SECONDS -> wait
 assert_matches_command: _ASSERT COMPLEX_VALUE _ELEMENT_KW? INT? _MATCHES _WITH COMPLEX_VALUE _ELEMENT_KW? INT? -> assert_match
 
 hover_over_command: _HOVER _OVER NAME _ELEMENT_KW INT? -> hover_over
+
+send_key_command: _SEND KEYNAME _KEY _TO NAME _ELEMENT_KW INT? -> send_key
 
 // Tables
 _table_header:      _VBAR _LOCATOR_WORD _VBAR _DATA_WORD _VBAR _NEWLINE
