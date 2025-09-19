@@ -7,6 +7,7 @@ from webtest.utils import load_functions
 import time
 
 command_handlers = {}
+lists = {}
 
 def register(name):
     def decorator(funct):
@@ -344,7 +345,7 @@ def handle_hover_over(cmd):
     print(f"[HOVER] over '{children[0]} 'element")
 
 @register("send_key")
-def send_key_command(cmd):
+def handle_send_key(cmd):
     children = cmd.children[0].children
     children_len = len(children)
     index = None if children_len == 2 else int(children[2])
@@ -353,6 +354,18 @@ def send_key_command(cmd):
     locator,_ = get_locator(variable_locator, "[SEND-KEY - ERROR]", unique=is_unique, loc_number=index)
     locator.press(f"{children[0].capitalize()}", timeout=5000)
     print(f"[SEND-KEY] '{children[0]}' sent to '{children[1]}' element")
+
+@register("add_to_list")
+def handle_add_to_list(cmd):
+    children = cmd.children[0].children
+    list_name = children[-1].value
+
+    if not list_name in lists:
+        lists[list_name] = []
+
+    for token in children:
+        if isinstance(token, Token) and token.type == "COMPLEX_VALUE":
+            lists[list_name].append(token.value.strip('"'))
 
 '''
 agregar la posibilidad de guardar varios valores en una lista
