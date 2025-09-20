@@ -387,6 +387,6 @@ def handle_assert_in_list(cmd):
             to_search_in_list = resolve_prefix(token.value.strip('"'), "[ASSERT-IN-LIST - ERROR]", index=index)
     
     raw_lines = to_search_in_list.splitlines()
-    lines = [line.strip() for line in raw_lines if line.strip()]
+    lines = [s for lines in raw_lines if (s := lines.strip())]
     # continue here
     print(lines)
