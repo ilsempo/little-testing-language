@@ -7,7 +7,6 @@ from webtest.utils import load_functions
 import time
 
 command_handlers = {}
-lists = {}
 
 def register(name):
     def decorator(funct):
@@ -360,20 +359,34 @@ def handle_add_to_list(cmd):
     children = cmd.children[0].children
     list_name = children[-1].value
 
-    if not list_name in lists:
-        lists[list_name] = []
+    if not list_name in ctx.lists:
+        ctx.lists[list_name] = []
+
+    index = next((int(token.value) for token in children if token.type == "INT"), None)
 
     for token in children:
-        if isinstance(token, Token) and token.type == "COMPLEX_VALUE":
-            lists[list_name].append(token.value.strip('"'))
+        if token.type == "COMPLEX_VALUE":
+            to_save_in_list = resolve_prefix(token.value.strip('"'), "[ADD-TO-LIST - ERROR]", index=index)
+            ctx.lists[list_name].append(to_save_in_list)
 
-'''
-agregar la posibilidad de guardar varios valores en una lista
-esto sirve para traerse todos los textos de un elemento
-    raw_lines = locator.inner_text().splitlines()
-    lines = [
-        re.sub(r"[^\w\s>$€.,-]", "", line).strip()
-        for line in raw_lines
-        if line.strip()
-    ]
-'''
+@register("assert_in_list")
+def handle_assert_in_list(cmd):
+    children = cmd.children[0].children
+    list_name = children[-1].value
+    quantifiers = {"ALL", "ANY", "NONE"}
+    quantifier = None
+    if list_name not in ctx.lists:
+        raise Exception(f'[ASSERT-IN-LIST - ERROR] list {list_name} does not exist')
+
+    index = next((int(token.value) for token in children if token.type == "INT"), None)
+
+    for token in children:
+        if token.type in quantifiers:
+            quantifier = token.value
+        if token.type == "COMPLEX_VALUE":
+            to_search_in_list = resolve_prefix(token.value.strip('"'), "[ASSERT-IN-LIST - ERROR]", index=index)
+    
+    raw_lines = to_search_in_list.splitlines()
+    lines = [line.strip() for line in raw_lines if line.strip()]
+    # continue here
+    print(lines)

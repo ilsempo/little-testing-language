@@ -4,5 +4,6 @@ class WebtestContext:
     locator_map = {}
     page = None
     variables = {}
+    lists = {}
 
 ctx = WebtestContext()
