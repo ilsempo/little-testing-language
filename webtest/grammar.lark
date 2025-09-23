@@ -71,6 +71,8 @@ _MATCHES:  "matches"
 ALL:       "all"
 ANY:       "any"
 NONE:      "none"
+_EXIST:    "exist"
+_EXISTS:   "exists"
 
 // =========================
 // Tokens: Auxiliares compuestos
@@ -147,7 +149,7 @@ command: visit_command
        | assert_in_list_command
 
 visit_command: _VISIT PARAM -> visit
-click_command: _CLICK PARAM _ELEMENT_KW? INT? -> click
+click_command: _CLICK PARAM (_AT _INDEX INT)? -> click
 fill_command:  _FILL PARAM _WITH STRING -> fill
 
 validate_page_command: _VALIDATE _label _PAGE _LOADS _WITH _LOCATORS _COLON _NEWLINE locator_table -> check_page
@@ -186,7 +188,7 @@ send_key_command: _SEND KEYNAME _KEY _TO NAME _ELEMENT_KW INT? -> send_key
 
 add_element_to_list_command: _ADD (COMPLEX_VALUE ("," COMPLEX_VALUE)*) (_AT _INDEX INT)? _TO NAME _LIST -> add_to_list
 
-assert_in_list_command: _ASSERT (ALL|ANY|NONE)? (COMPLEX_VALUE ("," COMPLEX_VALUE)*) (_AT _INDEX INT)? _IN NAME _LIST -> assert_in_list
+assert_in_list_command: _ASSERT (ALL|ANY|NONE)? (_ELEMENTS|_ELEMENT_KW) _IN NAME _LIST _EXIST _IN (COMPLEX_VALUE ("," COMPLEX_VALUE)*) (_AT _INDEX INT)? -> assert_in_list
 
 // Tables
 _table_header:      _VBAR _LOCATOR_WORD _VBAR _DATA_WORD _VBAR _NEWLINE

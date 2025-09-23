@@ -372,9 +372,9 @@ def handle_add_to_list(cmd):
 @register("assert_in_list")
 def handle_assert_in_list(cmd):
     children = cmd.children[0].children
-    list_name = children[-1].value
+    list_name = next((token.value for token in children if token.type == "NAME"))
     quantifiers = {"ALL", "ANY", "NONE"}
-    quantifier = None
+
     if list_name not in ctx.lists:
         raise Exception(f'[ASSERT-IN-LIST - ERROR] list {list_name} does not exist')
 
@@ -385,8 +385,22 @@ def handle_assert_in_list(cmd):
             quantifier = token.value
         if token.type == "COMPLEX_VALUE":
             to_search_in_list = resolve_prefix(token.value.strip('"'), "[ASSERT-IN-LIST - ERROR]", index=index)
-    
+
     raw_lines = to_search_in_list.splitlines()
     lines = [s for lines in raw_lines if (s := lines.strip())]
-    # continue here
-    print(lines)
+    
+    text_in_page = set(lines)
+    elements_in_list = set(ctx.lists[list_name])
+
+    if quantifier == 'all':
+        missing = elements_in_list - text_in_page
+        assert not missing, f"[ASSERT-IN-LIST - ERROR] not all elements in : {missing}"
+        print(f"[ASSERT-IN-LIST] all elements in {list_name} exist in element")
+    elif quantifier == 'any':
+        intersection = elements_in_list & text_in_page
+        assert intersection, f"[ASSERT-IN-LIST - ERROR] there are no elements from list in element"
+        print(f"[ASSERT-IN-LIST] {intersection} element/s exist in element")
+    else:
+        intersection = elements_in_list & text_in_page
+        assert not intersection, f"[ASSERT-IN-LIST - ERROR] elements {intersection} exist in element"
+        print(f"[ASSERT-IN-LIST] none elements exist in element")
