@@ -172,7 +172,7 @@ import_locators_command: _IMPORT _LOCATORS_UPPER NAME -> import_locators
 
 use_function_command: _USE _MACRO NAME -> use_function
 
-save_in_variable_command: _SAVE COMPLEX_VALUE _FROM? _ELEMENT_KW? INT? _IN NAME _VARIABLE -> save_variable
+save_in_variable_command: _SAVE COMPLEX_VALUE (_AT _INDEX INT)? _IN NAME _VARIABLE -> save_variable
 
 upload_file_command: _UPLOAD STRING _FILE _IN NAME _INPUT -> upload_file
 
@@ -180,15 +180,15 @@ accept_or_dismiss_command: (ACCEPT|DISMISS) NAME _DIALOG -> accept_dismiss
 
 wait_command: _WAIT INT _SECONDS -> wait
 
-assert_matches_command: _ASSERT COMPLEX_VALUE _ELEMENT_KW? INT? _MATCHES _WITH COMPLEX_VALUE _ELEMENT_KW? INT? -> assert_match
+assert_matches_command: _ASSERT COMPLEX_VALUE (_AT _INDEX INT)? _MATCHES _WITH COMPLEX_VALUE (_AT _INDEX INT)? -> assert_match
 
-hover_over_command: _HOVER _OVER NAME _ELEMENT_KW INT? -> hover_over
+hover_over_command: _HOVER _OVER NAME _ELEMENT_KW (_AT _INDEX INT)? -> hover_over
 
-send_key_command: _SEND KEYNAME _KEY _TO NAME _ELEMENT_KW INT? -> send_key
+send_key_command: _SEND KEYNAME _KEY _TO NAME _ELEMENT_KW (_AT _INDEX INT)? -> send_key
 
 add_element_to_list_command: _ADD (COMPLEX_VALUE ("," COMPLEX_VALUE)*) (_AT _INDEX INT)? _TO NAME _LIST -> add_to_list
 
-assert_in_list_command: _ASSERT (ALL|ANY|NONE)? (_ELEMENTS|_ELEMENT_KW) _IN NAME _LIST _EXIST _IN (COMPLEX_VALUE ("," COMPLEX_VALUE)*) (_AT _INDEX INT)? -> assert_in_list
+assert_in_list_command: _ASSERT (ALL|ANY|NONE) (_ELEMENTS|_ELEMENT_KW) _IN NAME _LIST _EXIST _IN (COMPLEX_VALUE ("," COMPLEX_VALUE)*) (_AT _INDEX INT)? -> assert_in_list
 
 // Tables
 _table_header:      _VBAR _LOCATOR_WORD _VBAR _DATA_WORD _VBAR _NEWLINE
