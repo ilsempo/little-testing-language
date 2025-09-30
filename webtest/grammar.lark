@@ -61,6 +61,7 @@ _SECONDS:        "seconds"
 _KEY:            "key"
 _LIST:           "list"
 _INDEX:          "index"
+_TIMES:          "times"
 
 // =========================
 // Tokens: Qualifiers / Internal Verbs / Quantifiers
@@ -111,6 +112,7 @@ TABLE_PARAM:   /[^\n|]+/
 SELECTOR:      /[^\n]+/
 TAG:           /<[^<>]*>/
 KEYNAME:       /[A-Z][A-Za-z0-9_]*/
+TIMES_INT:     INT
 COMPLEX_VALUE: STRING
              | INT
              | NAME
@@ -149,8 +151,8 @@ command: visit_command
        | assert_in_list_command
 
 visit_command: _VISIT PARAM -> visit
-click_command: _CLICK PARAM (_AT _INDEX INT)? -> click
-fill_command:  _FILL PARAM _WITH STRING -> fill
+click_command: _CLICK PARAM (_AT _INDEX INT)? (TIMES_INT _TIMES)? -> click
+fill_command:  _FILL PARAM _WITH COMPLEX_VALUE -> fill
 
 validate_page_command: _VALIDATE _label _PAGE _LOADS _WITH _LOCATORS _COLON _NEWLINE locator_table -> check_page
 

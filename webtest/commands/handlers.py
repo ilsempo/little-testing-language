@@ -29,15 +29,25 @@ def handle_visit(cmd):
 def handle_click(cmd):
     children = cmd.children[0].children
     variable = children[0]
-    index = int(children[1]) if len(children) > 1 else None
+    children_len_more_than_one = len(children) > 1
+    index = int(children[1]) if children_len_more_than_one else None
     unique_needed = index is None
     defined_locator = resolve_selector(variable, "[CLICK - ERROR]")
+    times_int = None
+
+    if children_len_more_than_one:
+        times_int = next((int(token.value) for token in children if token.type == "TIMES_INT"), None)
 
     locator,_ = get_locator(defined_locator, "[CLICK - ERROR]", require_clickable=True, unique=unique_needed, loc_number=index)
 
+    count = times_int or 1
+
     try:
-        print(f"[CLICK] {variable}")
-        locator.click()
+        for i in range(count):
+            print(f"[CLICK] {variable}")
+            locator.click()
+            if i < count:
+                time.sleep(0.25)
     except Exception as e:
         print(f"[CLICK - ERROR] tried to click but an error occured: {e}")
         raise
@@ -50,7 +60,7 @@ def handle_fill(cmd):
 
     defined_locator = resolve_selector(variable, "[FILL - ERROR]")
     valid_fills = {"tag": {"input", "textarea"},
-                   "type": {"text", "email", "password", "search", "url", "''"}}
+                   "type": {"text", "email", "password", "search", "url", "number", "''"}}
     locator, _ = get_locator(defined_locator, "[FILL - ERROR]")
     entered_text = children.children[1].value.strip('"')
     text = resolve_prefix(entered_text, "[FILL - ERROR]")
