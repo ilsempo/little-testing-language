@@ -172,7 +172,7 @@ check_massage_present: CHECK STRING _TEXT _IN TAG (IS_NOT|IS) _PRESENT _IN _PAGE
 
 import_locators_command: _IMPORT _LOCATORS_UPPER NAME -> import_locators
 
-use_function_command: _USE _MACRO NAME -> use_function
+use_function_command: _USE _MACRO NAME params? -> use_function
 
 save_in_variable_command: _SAVE COMPLEX_VALUE (_AT _INDEX INT)? _IN NAME _VARIABLE -> save_variable
 
@@ -204,5 +204,7 @@ _label: NAME+
 locator_table: _row+
 _row: _VBAR TABLE_PARAM _VBAR _NEWLINE?
 
-
+// Macro params
+param: NAME | INT
+params: "{" (param ("," param)*)? "}"
 

@@ -44,10 +44,14 @@ def handle_click(cmd):
 
     try:
         for i in range(count):
-            print(f"[CLICK] {variable}")
             locator.click()
             if i < count:
                 time.sleep(0.25)
+
+        if times_int:
+            print(f"[CLICK] {variable} {count} times")
+        else:
+            print(f"[CLICK] {variable}")
     except Exception as e:
         print(f"[CLICK - ERROR] tried to click but an error occured: {e}")
         raise
@@ -250,23 +254,31 @@ def handle_import_locators(cmd):
 
         ctx.locator_map.update(locators)
 
+#FIXME
 @register("use_function")
 def handle_define_function(cmd):
-    entered_function_name = cmd.children[0].children[0].value.strip()
+    children = cmd.children[0].children
+    entered_function_name = children[0].value.strip()
+    if len(children) > 1:
+        params = children[1]
+        print(params)
+    # entered_function_name = cmd.children[0].children[0].value.strip()
 
-    if not ctx.functions:
-        ctx.functions = load_functions("tests/functions/common_functions.txt")
+    # if not ctx.functions:
+    #     ctx.functions = load_functions("tests/functions/common_functions.txt")
 
-    if entered_function_name not in ctx.functions:
-        raise Exception(f"[IMPORT-MACRO] failed, '{entered_function_name}' macro does not exist")
+    # if entered_function_name not in ctx.functions:
+    #     raise Exception(f"[IMPORT-MACRO] failed, '{entered_function_name}' macro does not exist")
 
-    body = ctx.functions[entered_function_name]
-    subtree = ctx.parser.parse(body)
-    commands = subtree.children
+    # body = ctx.functions[entered_function_name][0]
+    # params = ctx.functions[entered_function_name][1]
+ 
+    # subtree = ctx.parser.parse(body)
+    # commands = subtree.children
 
-    for command in commands:
-        decorator_name = command.children[0].data
-        command_handlers[decorator_name](command)
+    # for command in commands:
+    #     decorator_name = command.children[0].data
+    #     command_handlers[decorator_name](command)
 
 @register("save_variable")
 def handle_save_variable(cmd):

@@ -27,11 +27,17 @@ def load_functions(path):
 
     functions = {}
 
-    pattern = r'MACRO (\w+):\n(.*?)\nEND MACRO'
-    matches = re.findall(pattern, content, re.DOTALL)
-
-    for name, body in matches:
-        functions[name] = body.strip()
+    pattern = re.compile(
+        r'(?m)^MACRO\s+([A-Za-z_]\w*)\s*(?:\{\s*([A-Za-z_]\w*(?:\s*,\s*[A-Za-z_]\w*)*)\s*\})?\s*:\s*\n([\s\S]*?)\n\s*END\s+MACRO\s*$'
+    )
+    
+    for m in pattern.finditer(content):
+        name = m.group(1)
+        params = [] if not m.group(2) else [p.strip() for p in m.group(2).split(",")]
+        body = m.group(3)
+        if params and not all(param in body for param in params):
+            raise Exception(f"[MACRO - ERROR] params {params} not used in function '{name}'")
+        functions[name] = (body, params)
 
     return functions
 
