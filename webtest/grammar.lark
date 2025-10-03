@@ -205,6 +205,6 @@ locator_table: _row+
 _row: _VBAR TABLE_PARAM _VBAR _NEWLINE?
 
 // Macro params
-param: NAME | INT
-params: "{" (param ("," param)*)? "}"
+?param: NAME | INT
+params: "{" [param ("," param)*] "}"
 

@@ -260,21 +260,20 @@ def handle_define_function(cmd):
     children = cmd.children[0].children
     entered_function_name = children[0].value.strip()
     if len(children) > 1:
-        params = children[1]
-        print(params)
-    # entered_function_name = cmd.children[0].children[0].value.strip()
+        params_tree = children[1].children
+        params_list = [param.value.strip('"') for param in params_tree]
 
-    # if not ctx.functions:
-    #     ctx.functions = load_functions("tests/functions/common_functions.txt")
+    if not ctx.functions:
+        ctx.functions = load_functions("tests/functions/common_functions.txt")
 
-    # if entered_function_name not in ctx.functions:
-    #     raise Exception(f"[IMPORT-MACRO] failed, '{entered_function_name}' macro does not exist")
+    if entered_function_name not in ctx.functions:
+        raise Exception(f"[USE-MACRO] failed, '{entered_function_name}' macro does not exist")
 
-    # body = ctx.functions[entered_function_name][0]
-    # params = ctx.functions[entered_function_name][1]
- 
-    # subtree = ctx.parser.parse(body)
-    # commands = subtree.children
+    body = ctx.functions[entered_function_name][0]
+    params = ctx.functions[entered_function_name][1]
+    print(params)
+    subtree = ctx.parser.parse(body)
+    commands = subtree.children
 
     # for command in commands:
     #     decorator_name = command.children[0].data
