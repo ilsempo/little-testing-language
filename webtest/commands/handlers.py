@@ -1,10 +1,11 @@
-from webtest.utils import resolve_selector, get_locator, resolve_selectors, assert_all_unique_and_visible, resolve_prefix
+from webtest.utils import resolve_selector, get_locator, resolve_selectors, assert_all_unique_and_visible, resolve_prefix, expand_macro_body
 from lark import Token
 from pathlib import Path
 import yaml
 from webtest.context import ctx
 from webtest.utils import load_functions
 import time
+import re
 
 command_handlers = {}
 
@@ -269,11 +270,12 @@ def handle_define_function(cmd):
     if entered_function_name not in ctx.functions:
         raise Exception(f"[USE-MACRO] failed, '{entered_function_name}' macro does not exist")
 
-    body = ctx.functions[entered_function_name][0]
-    params = ctx.functions[entered_function_name][1]
-    print(params)
-    subtree = ctx.parser.parse(body)
-    commands = subtree.children
+    spec = ctx.functions[entered_function_name]
+    bidings = dict(zip(spec["params"], params_list))
+    expand_macro_body(spec["body"], bidings)
+
+    # subtree = ctx.parser.parse(body)
+    # commands = subtree.children
 
     # for command in commands:
     #     decorator_name = command.children[0].data

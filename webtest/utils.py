@@ -26,7 +26,7 @@ def load_functions(path):
         content = f.read()
 
     functions = {}
-
+    param_pattern =  re.compile(r"\{([A-Za-z_]\w*)\}")
     pattern = re.compile(
         r'(?m)^MACRO\s+([A-Za-z_]\w*)\s*(?:\{\s*([A-Za-z_]\w*(?:\s*,\s*[A-Za-z_]\w*)*)\s*\})?\s*:\s*\n([\s\S]*?)\n\s*END\s+MACRO\s*$'
     )
@@ -35,11 +35,31 @@ def load_functions(path):
         name = m.group(1)
         params = [] if not m.group(2) else [p.strip() for p in m.group(2).split(",")]
         body = m.group(3)
-        if params and not all(param in body for param in params):
-            raise Exception(f"[MACRO - ERROR] params {params} not used in function '{name}'")
-        functions[name] = (body, params)
+
+        placeholders = set(param_pattern.findall(body))
+        missing = set(params) - placeholders
+        if missing:
+            raise Exception(f"[MACRO - ERROR] params {missing} not used in function '{name}'")
+
+        functions[name] = {"body": body, "params": params}
 
     return functions
+
+def expand_macro_body(body, bindings):
+    param_pattern =  re.compile(r"\{([A-Za-z_]\w*)\}")
+    out = []
+    last = 0
+    for match in param_pattern.finditer(body):
+        out.append(body[last : match.start()])
+        key = match.group(1)
+
+        if key not in bindings:
+            raise Exception(f"[MACRO - ERROR] missing arg '{key}'")
+        
+        out.append(str(bindings[key]))
+        print(out)
+        last = match.end()
+    out.append(body[last:])
 
 def resolve_selector(entered_locator, label_error):
     if entered_locator not in ctx.locator_map:
