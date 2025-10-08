@@ -38,6 +38,7 @@ def load_functions(path):
 
         placeholders = set(param_pattern.findall(body))
         missing = set(params) - placeholders
+
         if missing:
             raise Exception(f"[MACRO - ERROR] params {missing} not used in function '{name}'")
 
@@ -57,9 +58,10 @@ def expand_macro_body(body, bindings):
             raise Exception(f"[MACRO - ERROR] missing arg '{key}'")
         
         out.append(str(bindings[key]))
-        print(out)
         last = match.end()
     out.append(body[last:])
+
+    return ''.join(out)
 
 def resolve_selector(entered_locator, label_error):
     if entered_locator not in ctx.locator_map:

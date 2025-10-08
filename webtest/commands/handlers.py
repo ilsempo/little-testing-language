@@ -255,14 +255,10 @@ def handle_import_locators(cmd):
 
         ctx.locator_map.update(locators)
 
-#FIXME
 @register("use_function")
 def handle_define_function(cmd):
     children = cmd.children[0].children
     entered_function_name = children[0].value.strip()
-    if len(children) > 1:
-        params_tree = children[1].children
-        params_list = [param.value.strip('"') for param in params_tree]
 
     if not ctx.functions:
         ctx.functions = load_functions("tests/functions/common_functions.txt")
@@ -270,12 +266,18 @@ def handle_define_function(cmd):
     if entered_function_name not in ctx.functions:
         raise Exception(f"[USE-MACRO] failed, '{entered_function_name}' macro does not exist")
 
-    spec = ctx.functions[entered_function_name]
-    bidings = dict(zip(spec["params"], params_list))
-    expand_macro_body(spec["body"], bidings)
+    macro = ctx.functions[entered_function_name]
+    body = macro["body"]
 
-    # subtree = ctx.parser.parse(body)
-    # commands = subtree.children
+    if len(children) > 1:
+        params_tree = children[1].children
+        params_list = [param.value.strip('"') for param in params_tree]
+        bindings = dict(zip(macro["params"], params_list))
+        print(bindings)
+        body = expand_macro_body(macro["body"], bindings)
+
+    subtree = ctx.parser.parse(body)
+    commands = subtree.children
 
     # for command in commands:
     #     decorator_name = command.children[0].data
