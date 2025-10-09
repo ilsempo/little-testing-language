@@ -264,7 +264,7 @@ def handle_define_function(cmd):
         ctx.functions = load_functions("tests/functions/common_functions.txt")
 
     if entered_function_name not in ctx.functions:
-        raise Exception(f"[USE-MACRO] failed, '{entered_function_name}' macro does not exist")
+        raise Exception(f"[USE-MACRO - ERROR] '{entered_function_name}' macro does not exist")
 
     macro = ctx.functions[entered_function_name]
     body = macro["body"]
@@ -272,16 +272,24 @@ def handle_define_function(cmd):
     if len(children) > 1:
         params_tree = children[1].children
         params_list = [param.value.strip('"') for param in params_tree]
+
+        if not len(params_list) == len(set(params_list)):
+            raise Exception("[USE-MACRO - ERROR] duplicated params")
+
         bindings = dict(zip(macro["params"], params_list))
-        print(bindings)
+        not_in_bindings = [param for param in params_list if param not in bindings.values()]
+    
+        if not_in_bindings:
+            raise Exception(f"[USE-MACRO - ERROR] unused params {not_in_bindings}")
+
         body = expand_macro_body(macro["body"], bindings)
 
     subtree = ctx.parser.parse(body)
     commands = subtree.children
 
-    # for command in commands:
-    #     decorator_name = command.children[0].data
-    #     command_handlers[decorator_name](command)
+    for command in commands:
+        decorator_name = command.children[0].data
+        command_handlers[decorator_name](command)
 
 @register("save_variable")
 def handle_save_variable(cmd):
