@@ -1,10 +1,11 @@
-from webtest.utils import resolve_selector, get_locator, resolve_selectors, assert_all_unique_and_visible, resolve_prefix
+from webtest.utils import resolve_selector, get_locator, resolve_selectors, assert_all_unique_and_visible, resolve_prefix, expand_macro_body
 from lark import Token
 from pathlib import Path
 import yaml
 from webtest.context import ctx
 from webtest.utils import load_functions
 import time
+import re
 
 command_handlers = {}
 
@@ -29,15 +30,29 @@ def handle_visit(cmd):
 def handle_click(cmd):
     children = cmd.children[0].children
     variable = children[0]
-    index = int(children[1]) - 1 if len(children) > 1 else None
+    children_len_more_than_one = len(children) > 1
+    index = int(children[1]) if children_len_more_than_one else None
     unique_needed = index is None
     defined_locator = resolve_selector(variable, "[CLICK - ERROR]")
+    times_int = None
+
+    if children_len_more_than_one:
+        times_int = next((int(token.value) for token in children if token.type == "TIMES_INT"), None)
 
     locator,_ = get_locator(defined_locator, "[CLICK - ERROR]", require_clickable=True, unique=unique_needed, loc_number=index)
 
+    count = times_int or 1
+
     try:
-        print(f"[CLICK] {variable}")
-        locator.click()
+        for i in range(count):
+            locator.click()
+            if i < count:
+                time.sleep(0.25)
+
+        if times_int:
+            print(f"[CLICK] {variable} {count} times")
+        else:
+            print(f"[CLICK] {variable}")
     except Exception as e:
         print(f"[CLICK - ERROR] tried to click but an error occured: {e}")
         raise
@@ -50,7 +65,7 @@ def handle_fill(cmd):
 
     defined_locator = resolve_selector(variable, "[FILL - ERROR]")
     valid_fills = {"tag": {"input", "textarea"},
-                   "type": {"text", "email", "password", "search", "url", "''"}}
+                   "type": {"text", "email", "password", "search", "url", "number", "''"}}
     locator, _ = get_locator(defined_locator, "[FILL - ERROR]")
     entered_text = children.children[1].value.strip('"')
     text = resolve_prefix(entered_text, "[FILL - ERROR]")
@@ -242,15 +257,33 @@ def handle_import_locators(cmd):
 
 @register("use_function")
 def handle_define_function(cmd):
-    entered_function_name = cmd.children[0].children[0].value.strip()
+    children = cmd.children[0].children
+    entered_function_name = children[0].value.strip()
 
     if not ctx.functions:
         ctx.functions = load_functions("tests/functions/common_functions.txt")
 
     if entered_function_name not in ctx.functions:
-        raise Exception(f"[IMPORT-MACRO] failed, '{entered_function_name}' macro does not exist")
+        raise Exception(f"[USE-MACRO - ERROR] '{entered_function_name}' macro does not exist")
 
-    body = ctx.functions[entered_function_name]
+    macro = ctx.functions[entered_function_name]
+    body = macro["body"]
+
+    if len(children) > 1:
+        params_tree = children[1].children
+        params_list = [param.value.strip('"') for param in params_tree]
+
+        if not len(params_list) == len(set(params_list)):
+            raise Exception("[USE-MACRO - ERROR] duplicated params")
+
+        bindings = dict(zip(macro["params"], params_list))
+        not_in_bindings = [param for param in params_list if param not in bindings.values()]
+    
+        if not_in_bindings:
+            raise Exception(f"[USE-MACRO - ERROR] unused params {not_in_bindings}")
+
+        body = expand_macro_body(macro["body"], bindings)
+
     subtree = ctx.parser.parse(body)
     commands = subtree.children
 
@@ -326,3 +359,82 @@ def handle_assert_match(cmd):
             raise Exception(f"[ASSERT - ERROR] '{first_value}' is different that '{second_value}'")
 
         print(f"[ASSERT] '{first_value}' matches with '{second_value}'")
+
+@register("hover_over")
+def handle_hover_over(cmd):
+    children = cmd.children[0].children
+    children_len = len(children)
+    index = None if children_len == 1 else int(children[1])
+    is_unique = index is None
+    variable_locator = resolve_selector(children[0], "[HOVER - ERROR]")
+    locator,_ = get_locator(variable_locator, "[HOVER - ERROR]", unique=is_unique, loc_number=index)
+    box = locator.bounding_box()
+    if box:
+        x = box["x"] + box["width"] / 2
+        y = box["y"] + box["height"] / 2
+        ctx.page.mouse.move(x, y, steps=10)
+    locator.hover(timeout=5000)
+    print(f"[HOVER] over '{children[0]} 'element")
+
+@register("send_key")
+def handle_send_key(cmd):
+    children = cmd.children[0].children
+    children_len = len(children)
+    index = None if children_len == 2 else int(children[2])
+    is_unique = index is None
+    variable_locator = resolve_selector(children[1], "[SEND-KEY - ERROR]")
+    locator,_ = get_locator(variable_locator, "[SEND-KEY - ERROR]", unique=is_unique, loc_number=index)
+    locator.press(f"{children[0].capitalize()}", timeout=5000)
+    print(f"[SEND-KEY] '{children[0]}' sent to '{children[1]}' element")
+
+@register("add_to_list")
+def handle_add_to_list(cmd):
+    children = cmd.children[0].children
+    list_name = children[-1].value
+
+    if not list_name in ctx.lists:
+        ctx.lists[list_name] = []
+
+    index = next((int(token.value) for token in children if token.type == "INT"), None)
+
+    for token in children:
+        if token.type == "COMPLEX_VALUE":
+            to_save_in_list = resolve_prefix(token.value.strip('"'), "[ADD-TO-LIST - ERROR]", index=index)
+            ctx.lists[list_name].append(to_save_in_list)
+
+@register("assert_in_list")
+def handle_assert_in_list(cmd):
+    children = cmd.children[0].children
+    list_name = next((token.value for token in children if token.type == "NAME"))
+    quantifiers = {"ALL", "ANY", "NONE"}
+
+    if list_name not in ctx.lists:
+        raise Exception(f'[ASSERT-IN-LIST - ERROR] list {list_name} does not exist')
+
+    index = next((int(token.value) for token in children if token.type == "INT"), None)
+
+    for token in children:
+        if token.type in quantifiers:
+            quantifier = token.value
+        if token.type == "COMPLEX_VALUE":
+            element = token.value.strip('"')
+            to_search_in_list = resolve_prefix(element, "[ASSERT-IN-LIST - ERROR]", index=index)
+
+    raw_lines = to_search_in_list.splitlines()
+    lines = [s for lines in raw_lines if (s := lines.strip())]
+    
+    text_in_page = set(lines)
+    elements_in_list = set(ctx.lists[list_name])
+
+    if quantifier == 'all':
+        missing = elements_in_list - text_in_page
+        assert not missing, f"[ASSERT-IN-LIST - ERROR] not all elements in : {missing}"
+        print(f"[ASSERT-IN-LIST] all elements in {list_name} exist in element '{element}'")
+    elif quantifier == 'any':
+        intersection = elements_in_list & text_in_page
+        assert intersection, f"[ASSERT-IN-LIST - ERROR] there are no elements from list in element '{element}'"
+        print(f"[ASSERT-IN-LIST] {intersection} element/s exist in element '{element}'")
+    else:
+        intersection = elements_in_list & text_in_page
+        assert not intersection, f"[ASSERT-IN-LIST - ERROR] elements {intersection} exist in element '{element}'"
+        print(f"[ASSERT-IN-LIST] none elements exist in element '{element}'")

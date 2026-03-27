@@ -28,6 +28,9 @@ ACCEPT:     "accept"
 DISMISS:    "dismiss"
 _WAIT:      "wait"
 _ASSERT:    "assert"
+_HOVER:     "hover"
+_SEND:      "send"
+_ADD:       "ADD"
 
 // =========================
 // Tokens: Prepositions / Connectors
@@ -35,6 +38,8 @@ _ASSERT:    "assert"
 _WITH:      "with"
 _FROM:      "from"
 _IN:        "in"
+_OVER:      "over"
+_AT:        "at"
 
 // =========================
 // Tokens: Domain Nouns
@@ -53,13 +58,22 @@ _FILE:           "file"
 _INPUT:          "input"
 _DIALOG:         "dialog"
 _SECONDS:        "seconds"
+_KEY:            "key"
+_LIST:           "list"
+_INDEX:          "index"
+_TIMES:          "times"
 
 // =========================
-// Tokens: Qualifiers / Internal Verbs
+// Tokens: Qualifiers / Internal Verbs / Quantifiers
 // =========================
 _LOADS:    "loads"
 _PRESENT:  "present"
 _MATCHES:  "matches"
+ALL:       "all"
+ANY:       "any"
+NONE:      "none"
+_EXIST:    "exist"
+_EXISTS:   "exists"
 
 // =========================
 // Tokens: Auxiliares compuestos
@@ -67,6 +81,7 @@ _MATCHES:  "matches"
 // IS_NOT debe ir antes que IS para capturar "is not"
 IS_NOT: "is" WS_INLINE "not"
 IS:     "is"
+_TO:    "to"
 
 // =========================
 // Tokens: Símbolos
@@ -96,6 +111,8 @@ PARAM:         /[^\s\n|]+/
 TABLE_PARAM:   /[^\n|]+/
 SELECTOR:      /[^\n]+/
 TAG:           /<[^<>]*>/
+KEYNAME:       /[A-Z][A-Za-z0-9_]*/
+TIMES_INT:     INT
 COMPLEX_VALUE: STRING
              | INT
              | NAME
@@ -128,10 +145,14 @@ command: visit_command
        | accept_or_dismiss_command
        | wait_command
        | assert_matches_command
+       | hover_over_command
+       | send_key_command
+       | add_element_to_list_command
+       | assert_in_list_command
 
 visit_command: _VISIT PARAM -> visit
-click_command: _CLICK PARAM _ELEMENT_KW? INT? -> click
-fill_command:  _FILL PARAM _WITH STRING -> fill
+click_command: _CLICK PARAM (_AT _INDEX INT)? (TIMES_INT _TIMES)? -> click
+fill_command:  _FILL PARAM _WITH COMPLEX_VALUE -> fill
 
 validate_page_command: _VALIDATE _label _PAGE _LOADS _WITH _LOCATORS _COLON _NEWLINE locator_table -> check_page
 
@@ -151,9 +172,9 @@ check_massage_present: CHECK STRING _TEXT _IN TAG (IS_NOT|IS) _PRESENT _IN _PAGE
 
 import_locators_command: _IMPORT _LOCATORS_UPPER NAME -> import_locators
 
-use_function_command: _USE _MACRO NAME -> use_function
+use_function_command: _USE _MACRO NAME params? -> use_function
 
-save_in_variable_command: _SAVE COMPLEX_VALUE _FROM? _ELEMENT_KW? INT? _IN NAME _VARIABLE -> save_variable
+save_in_variable_command: _SAVE COMPLEX_VALUE (_AT _INDEX INT)? _IN NAME _VARIABLE -> save_variable
 
 upload_file_command: _UPLOAD STRING _FILE _IN NAME _INPUT -> upload_file
 
@@ -161,7 +182,15 @@ accept_or_dismiss_command: (ACCEPT|DISMISS) NAME _DIALOG -> accept_dismiss
 
 wait_command: _WAIT INT _SECONDS -> wait
 
-assert_matches_command: _ASSERT COMPLEX_VALUE _ELEMENT_KW? INT? _MATCHES _WITH COMPLEX_VALUE _ELEMENT_KW? INT? -> assert_match
+assert_matches_command: _ASSERT COMPLEX_VALUE (_AT _INDEX INT)? _MATCHES _WITH COMPLEX_VALUE (_AT _INDEX INT)? -> assert_match
+
+hover_over_command: _HOVER _OVER NAME _ELEMENT_KW (_AT _INDEX INT)? -> hover_over
+
+send_key_command: _SEND KEYNAME _KEY _TO NAME _ELEMENT_KW (_AT _INDEX INT)? -> send_key
+
+add_element_to_list_command: _ADD (COMPLEX_VALUE ("," COMPLEX_VALUE)*) (_AT _INDEX INT)? _TO NAME _LIST -> add_to_list
+
+assert_in_list_command: _ASSERT (ALL|ANY|NONE) (_ELEMENTS|_ELEMENT_KW) _IN NAME _LIST _EXIST _IN (COMPLEX_VALUE ("," COMPLEX_VALUE)*) (_AT _INDEX INT)? -> assert_in_list
 
 // Tables
 _table_header:      _VBAR _LOCATOR_WORD _VBAR _DATA_WORD _VBAR _NEWLINE
@@ -175,5 +204,7 @@ _label: NAME+
 locator_table: _row+
 _row: _VBAR TABLE_PARAM _VBAR _NEWLINE?
 
-
+// Macro params
+?param: NAME | INT
+params: "{" [param ("," param)*] "}"
 

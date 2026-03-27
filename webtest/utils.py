@@ -26,14 +26,42 @@ def load_functions(path):
         content = f.read()
 
     functions = {}
+    param_pattern =  re.compile(r"\{([A-Za-z_]\w*)\}")
+    pattern = re.compile(
+        r'(?m)^MACRO\s+([A-Za-z_]\w*)\s*(?:\{\s*([A-Za-z_]\w*(?:\s*,\s*[A-Za-z_]\w*)*)\s*\})?\s*:\s*\n([\s\S]*?)\n\s*END\s+MACRO\s*$'
+    )
+    
+    for m in pattern.finditer(content):
+        name = m.group(1)
+        params = [] if not m.group(2) else [p.strip() for p in m.group(2).split(",")]
+        body = m.group(3)
 
-    pattern = r'MACRO (\w+):\n(.*?)\nEND MACRO'
-    matches = re.findall(pattern, content, re.DOTALL)
+        placeholders = set(param_pattern.findall(body))
+        missing = set(params) - placeholders
 
-    for name, body in matches:
-        functions[name] = body.strip()
+        if missing:
+            raise Exception(f"[MACRO - ERROR] params {missing} not used in function '{name}'")
+
+        functions[name] = {"body": body, "params": params}
 
     return functions
+
+def expand_macro_body(body, bindings):
+    param_pattern =  re.compile(r"\{([A-Za-z_]\w*)\}")
+    out = []
+    last = 0
+    for match in param_pattern.finditer(body):
+        out.append(body[last : match.start()])
+        key = match.group(1)
+
+        if key not in bindings:
+            raise Exception(f"[MACRO - ERROR] missing arg '{key}'")
+        
+        out.append(str(bindings[key]))
+        last = match.end()
+    out.append(body[last:])
+
+    return ''.join(out)
 
 def resolve_selector(entered_locator, label_error):
     if entered_locator not in ctx.locator_map:
@@ -69,7 +97,7 @@ def resolve_prefix(entered_value, label_error, mocked_true=True, var_true=True, 
     if prefix == "txt":
         solved_selector = resolve_selector(arg, label_error)
         unique_needed = index is None
-        loc_number = index - 1 if index else None
+        loc_number = index if index else None
         page_selector,_ = get_locator(solved_selector, label_error, require_visible=False, unique=unique_needed, loc_number=loc_number)
         text = (page_selector.text_content() or "").strip()
 
@@ -88,7 +116,7 @@ def get_locator(selector, label_error, require_visible=True, require_clickable=F
     else:
         if loc_number is None:
             raise Exception(f"if element not unique, locator number must be provided")
-        loc = ctx.page.locator(selector).nth(loc_number)
+        loc = ctx.page.locator(selector).nth(loc_number - 1)
 
     try:
         loc.wait_for(state="attached", timeout=timeout_ms)

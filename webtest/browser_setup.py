@@ -3,7 +3,7 @@ from webtest.context import ctx
 
 def browser_init(runnable_funct, headless=True):
     playwright = sync_playwright().start()
-    browser = playwright.chromium.launch(headless=headless, args=["--start-maximized"], slow_mo=250)
+    browser = playwright.chromium.launch(headless=headless, args=["--start-maximized"], slow_mo=400)
     context = browser.new_context(no_viewport=True)
     page = context.new_page()
     ctx.page = page
